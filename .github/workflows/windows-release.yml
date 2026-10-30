@@ -1,0 +1,98 @@
+name: Windows Release Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    # 1. MSYS2 세팅 및 Compiler, CMake, OpenSSL, Qt6 패키지 일괄 설치
+    - name: Setup MSYS2 and Install Dependencies
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-make
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-qt6-base
+          mingw-w64-x86_64-qt6-multimedia
+          mingw-w64-x86_64-qt6-tools
+          mingw-w64-x86_64-qt6-translations
+
+    # 2. MSYS2 Shell에서 CMake 빌드 수행
+    - name: Configure and Build (MSYS2 Shell)
+      shell: msys2 {0}
+      run: |
+        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release -j$(nproc)
+
+    # 3. Windows 필요 DLL 자동 수집 (windeployqt6, MinGW 런타임 및 OpenSSL 3 DLL)
+    - name: Deploy Windows Dependencies
+      shell: msys2 {0}
+      run: |
+        EXE_PATH=$(find build -name "lmc.exe" | head -n 1)
+        if [ -z "$EXE_PATH" ]; then
+          echo "Error: lmc.exe not found" && exit 1
+        fi
+        EXE_DIR=$(dirname "$EXE_PATH")
+        cd "$EXE_DIR"
+
+        if command -v windeployqt6 >/dev/null 2>&1; then
+          windeployqt6 --release --compiler-runtime lmc.exe
+        else
+          windeployqt --release --compiler-runtime lmc.exe
+        fi
+
+        # OpenSSL 3.x 및 MinGW 필수 런타임 DLL 복사
+        cp -f /mingw64/bin/libcrypto*.dll . 2>/dev/null || true
+        cp -f /mingw64/bin/libssl*.dll . 2>/dev/null || true
+        cp -f /mingw64/bin/libgcc_s_*.dll . 2>/dev/null || true
+        cp -f /mingw64/bin/libstdc++-6.dll . 2>/dev/null || true
+        cp -f /mingw64/bin/libwinpthread-1.dll . 2>/dev/null || true
+
+        # ldd를 통해 누락된 mingw64 DLL이 있으면 함께 수집
+        for dll in $(ldd lmc.exe | grep '/mingw64/bin/' | awk '{print $3}'); do
+          cp -n "$dll" . 2>/dev/null || true
+        done
+
+        # runtime/lmc.rcc 리소스 번들을 실행 폴더 루트에도 배치하여 단독 실행 보장
+        if [ -f "runtime/lmc.rcc" ]; then
+          cp -f runtime/lmc.rcc .
+        fi
+
+    # 4. Release 압축 파일 생성
+    - name: Compress Release Artifact
+      shell: powershell
+      run: |
+        $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
+        Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip" -Force
+
+    # 5. GitHub Release 업로드 (자동 태그 지정)
+    - name: Upload to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "v1.3.0"
+        name: "LAN Messenger v1.3.0 Windows Release"
+        body: |
+          LAN Messenger v1.3.0 Windows x64 Release (Based on v1.2.39).
+          - OpenSSL 3.0 <-> OpenSSL 1.0 Legacy Compatibility Architecture (`Legacy v1.0` PKCS#1 / `Strict v3.0` SPKI)
+          - Remote Desktop Control & Screen Streaming (`lmc/src/remote/`)
+        files: lan-messenger-windows-x64.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

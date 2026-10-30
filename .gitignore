@@ -1,0 +1,17 @@
+# Node / Web preview build artifacts (do not push to GitHub)
+node_modules/
+dist/
+.vite/
+.env
+.env.local
+
+# CMake / Qt local build output directories
+build/
+build-*/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.app
+*.dmg
+*.zip

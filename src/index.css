@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: Tahoma, 'Segoe UI', Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    user-select: none;
+  }
+}
+
+/* Classic Qt / Windows desktop scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #ece9d8;
+  border-left: 1px solid #d4d0c8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c0bcb0;
+  border: 1px solid #808080;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a498;
+}

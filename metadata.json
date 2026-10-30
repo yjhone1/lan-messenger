@@ -1,0 +1,5 @@
+{
+  "name": "LAN Messenger",
+  "description": "Peer-to-peer intra-network messaging application with OpenSSL 3.0 to OpenSSL 1.0 Legacy Compatibility (Legacy v1.0 / Strict v3.0), RSA-2048/1024 OAEP & AES-256-CBC cryptography, file transfers, group chat, broadcast messaging, and remote desktop.",
+  "requestFramePermissions": []
+}
