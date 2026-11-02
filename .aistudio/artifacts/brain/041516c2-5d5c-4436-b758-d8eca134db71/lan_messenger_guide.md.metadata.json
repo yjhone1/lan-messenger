@@ -1,0 +1,5 @@
+{
+  "summary":  "LAN Messenger v1.3.0 (v1.2.39 기반 + OpenSSL 3.0 <-> 1.0 호환성 아키텍처 + 원격 데스크톱 제어 기능 추가) 버전 업데이트 내역, 수정된 파일 목록, 그리고 Ubuntu 26.04.1 LTS (Qt Creator 18.0.2 / Qt 6.10.2 / GCC 15.2.0) 및 GitHub Windows 배포판 빌드 가이드입니다.",
+  "updatedAt":  "2026-10-30T05:05:34.858143169Z",
+  "userFacing":  true
+}
