@@ -99,8 +99,16 @@ void lmcUserInfoWindow::setUIText(void) {
     ui.txtAbout->setPlainText(data);
 
   ui.lblIPAddress->setText(userInfo.data(XN_ADDRESS));
+  QString mac = userInfo.data(XN_MACADDRESS);
+  ui.lblMacAddress->setText(mac.isEmpty() ? "N/A" : mac);
   ui.lblLogonName->setText(userInfo.data(XN_LOGON));
   ui.lblComputerName->setText(userInfo.data(XN_HOST));
   ui.lblOSName->setText(userInfo.data(XN_OS));
+  QString cpu = userInfo.data(XN_CPU);
+  ui.lblCpu->setText(cpu.isEmpty() ? "N/A" : cpu);
+  QString mem = userInfo.data(XN_MEMORY);
+  ui.lblMemory->setText(mem.isEmpty() ? "N/A" : mem);
+  QString gpu = userInfo.data(XN_GPU);
+  ui.lblGpu->setText(gpu.isEmpty() ? "N/A" : gpu);
   ui.lblVersion->setText(userInfo.data(XN_VERSION));
 }

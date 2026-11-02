@@ -28,9 +28,15 @@
 #include <lmcons.h>
 #else
 #include <stdlib.h>
+#include <sys/utsname.h>
 #endif
 #include <QStringList>
 #include <QFile>
+#include <QDir>
+#include <QSettings>
+#include <QSysInfo>
+#include <QThread>
+#include <QNetworkInterface>
 #include <QStringConverter>
 
 int Helper::indexOf(const QString array[], int size, const QString& value) {
@@ -99,14 +105,165 @@ QString Helper::getHostName(void) {
 
 QString Helper::getOSName(void) {
 #if defined Q_OS_WIN
-  return "Windows";
-#elif defined Q_OS_MAC
-  return "Mac OS X";
-#elif defined Q_OS_LINUX
-  return "Linux/X11";
+  QSettings reg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", QSettings::NativeFormat);
+  QString productName = reg.value("ProductName").toString();
+  QString displayVersion = reg.value("DisplayVersion").toString();
+  if(displayVersion.isEmpty())
+    displayVersion = reg.value("ReleaseId").toString();
+  QString buildNumber = reg.value("CurrentBuildNumber").toString();
+  int ubr = reg.value("UBR", 0).toInt();
+
+  // Windows 11 has buildNumber >= 22000 even if registry ProductName says Windows 10
+  if(buildNumber.toInt() >= 22000 && productName.contains("Windows 10")) {
+    productName.replace("Windows 10", "Windows 11");
+  }
+  if(productName.isEmpty())
+    productName = QSysInfo::prettyProductName();
+
+  QString buildStr = buildNumber;
+  if(ubr > 0 && !buildNumber.isEmpty())
+    buildStr = QString("%1.%2").arg(buildNumber).arg(ubr);
+
+  QString arch = QSysInfo::currentCpuArchitecture();
+  QStringList parts;
+  parts << productName;
+  if(!displayVersion.isEmpty())
+    parts << displayVersion;
+  if(!buildStr.isEmpty())
+    parts << QString("(OS Build %1, %2)").arg(buildStr, arch);
+  else if(!arch.isEmpty())
+    parts << QString("(%1)").arg(arch);
+
+  return parts.join(" ");
 #else
-  return "Unknown";
+  QString pretty = QSysInfo::prettyProductName();
+  QString kernel = QSysInfo::kernelVersion();
+  QString arch = QSysInfo::currentCpuArchitecture();
+  return QString("%1 (Kernel %2, %3)").arg(pretty, kernel, arch);
 #endif
+}
+
+QString Helper::getCpuInfo(void) {
+  int threads = QThread::idealThreadCount();
+#if defined Q_OS_WIN
+  QSettings reg("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", QSettings::NativeFormat);
+  QString cpuName = reg.value("ProcessorNameString").toString().trimmed();
+  int mhz = reg.value("~MHz", 0).toInt();
+  if(!cpuName.isEmpty()) {
+    if(mhz > 0)
+      return QString("%1 (%2 MHz, %3 Threads)").arg(cpuName).arg(mhz).arg(threads);
+    return QString("%1 (%2 Threads)").arg(cpuName).arg(threads);
+  }
+#elif defined Q_OS_LINUX
+  QFile cpuFile("/proc/cpuinfo");
+  if(cpuFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QByteArray content = cpuFile.readAll();
+    cpuFile.close();
+    const QList<QByteArray> lines = content.split('\n');
+    for(const QByteArray& line : lines) {
+      if(line.startsWith("model name")) {
+        int colon = line.indexOf(':');
+        if(colon != -1) {
+          QString model = QString::fromUtf8(line.mid(colon + 1)).trimmed();
+          return QString("%1 (%2 Threads)").arg(model).arg(threads);
+        }
+      }
+    }
+  }
+#endif
+  return QString("%1 (%2 Threads)").arg(QSysInfo::currentCpuArchitecture()).arg(threads);
+}
+
+QString Helper::getMemoryInfo(void) {
+#if defined Q_OS_WIN
+  MEMORYSTATUSEX memInfo;
+  memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+  if(GlobalMemoryStatusEx(&memInfo)) {
+    double totalGb = (double)memInfo.ullTotalPhys / (1024.0 * 1024.0 * 1024.0);
+    double availGb = (double)memInfo.ullAvailPhys / (1024.0 * 1024.0 * 1024.0);
+    return QString("%1 GB (Available: %2 GB / Load: %3%)")
+        .arg(totalGb, 0, 'f', 2)
+        .arg(availGb, 0, 'f', 2)
+        .arg(memInfo.dwMemoryLoad);
+  }
+#elif defined Q_OS_LINUX
+  QFile memFile("/proc/meminfo");
+  if(memFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qint64 memTotalKb = 0;
+    qint64 memAvailKb = 0;
+    const QList<QByteArray> lines = memFile.readAll().split('\n');
+    memFile.close();
+    for(const QByteArray& line : lines) {
+      if(line.startsWith("MemTotal:")) {
+        memTotalKb = QString::fromLatin1(line).simplified().section(' ', 1, 1).toLongLong();
+      } else if(line.startsWith("MemAvailable:")) {
+        memAvailKb = QString::fromLatin1(line).simplified().section(' ', 1, 1).toLongLong();
+      }
+    }
+    if(memTotalKb > 0) {
+      double totalGb = (double)memTotalKb / (1024.0 * 1024.0);
+      double availGb = (double)memAvailKb / (1024.0 * 1024.0);
+      return QString("%1 GB (Available: %2 GB)")
+          .arg(totalGb, 0, 'f', 2)
+          .arg(availGb, 0, 'f', 2);
+    }
+  }
+#endif
+  return "N/A";
+}
+
+QString Helper::getGpuInfo(void) {
+#if defined Q_OS_WIN
+  DISPLAY_DEVICEW dd;
+  ZeroMemory(&dd, sizeof(dd));
+  dd.cb = sizeof(dd);
+  for(DWORD i = 0; EnumDisplayDevicesW(NULL, i, &dd, 0); i++) {
+    if(dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) {
+      QString gpuName = QString::fromWCharArray(dd.DeviceString).trimmed();
+      if(!gpuName.isEmpty())
+        return gpuName;
+    }
+  }
+  if(EnumDisplayDevicesW(NULL, 0, &dd, 0)) {
+    QString gpuName = QString::fromWCharArray(dd.DeviceString).trimmed();
+    if(!gpuName.isEmpty())
+      return gpuName;
+  }
+#elif defined Q_OS_LINUX
+  QDir drmDir("/sys/class/drm");
+  if(drmDir.exists()) {
+    QFile uevent("/sys/class/drm/card0/device/uevent");
+    if(uevent.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      const QList<QByteArray> lines = uevent.readAll().split('\n');
+      uevent.close();
+      QString driver;
+      QString pciId;
+      for(const QByteArray& line : lines) {
+        if(line.startsWith("DRIVER="))
+          driver = QString::fromUtf8(line.mid(7)).trimmed();
+        else if(line.startsWith("PCI_ID="))
+          pciId = QString::fromUtf8(line.mid(7)).trimmed();
+      }
+      if(!driver.isEmpty())
+        return QString("%1 (PCI %2)").arg(driver, pciId);
+    }
+  }
+#endif
+  return "Standard Display Adapter";
+}
+
+QString Helper::getMacAddress(void) {
+  const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+  for(const QNetworkInterface& iface : interfaces) {
+    if((iface.flags() & QNetworkInterface::IsUp) &&
+       (iface.flags() & QNetworkInterface::IsRunning) &&
+       !(iface.flags() & QNetworkInterface::IsLoopBack)) {
+      QString mac = iface.hardwareAddress().trimmed();
+      if(!mac.isEmpty() && mac != "00:00:00:00:00:00")
+        return mac;
+    }
+  }
+  return "00:00:00:00:00:00";
 }
 
 QString Helper::escapeDelimiter(QString* lpszData) {

@@ -37,6 +37,14 @@ import {
   UpdateWindowModal,
   UserInfoWindowModal,
 } from './components/DialogModals';
+import {
+  getAppThemeConfig,
+  getLabels,
+  loadAppThemeFromStorage,
+  normalizeLanguage,
+  saveAppThemeToStorage,
+  toggleLanguage,
+} from './utils/i18n';
 
 const DEFAULT_SETTINGS: LmcSettings = {
   autoStart: true,
@@ -90,6 +98,7 @@ const DEFAULT_SETTINGS: LmcSettings = {
   autoReceiveFile: false,
   autoShowTransferWindow: true,
   fileStoragePath: '/home/alex/Downloads/LANMessenger',
+  appTheme: 'classic',
   theme: 'Bubble',
   userListView: 'Detailed',
   showStatusTooltip: true,
@@ -109,9 +118,14 @@ const INITIAL_PEERS: User[] = [
     note: 'OpenSSL 1.0.2u • Requires PKCS#1 BEGIN RSA PUBLIC KEY',
     group: '3BD95C30048C4E65F6082539A32DC333',
     address: '192.168.1.104',
+    macAddress: '00:1A:2B:3C:4D:04',
     hostName: 'WIN7-LAB-PC04',
     logonName: 'mpark',
     osName: 'Windows 7 SP1 (x86)',
+    osVersionDetail: 'Windows 7 Professional SP1 (Version 6.1, Build 7601: Service Pack 1, 32-bit x86)',
+    cpuInfo: 'Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz (4 Cores / 4 Threads)',
+    memoryInfo: '8.00 GB DDR3 (사용 가능: 5.42 GB / 총 8,192 MB)',
+    gpuInfo: 'NVIDIA GeForce GT 730 (VRAM 2,048 MB, DirectX 11)',
     version: '1.2.35',
     opensslVersion: 'OpenSSL 1.0.2u (Legacy PKCS#1)',
     rsaBits: 1024,
@@ -131,9 +145,14 @@ const INITIAL_PEERS: User[] = [
     note: 'Testing RSA-1024 <-> RSA-2048 mixed-pair handshake',
     group: '3BD95C30048C4E65F6082539A32DC333',
     address: '192.168.1.108',
+    macAddress: '00:1A:2B:3C:4D:08',
     hostName: 'qa-bionic-node2',
     logonName: 'erostova',
     osName: 'Ubuntu 18.04 LTS',
+    osVersionDetail: 'Ubuntu 18.04.6 LTS (Bionic Beaver, Kernel 5.4.0-150-generic, x86_64)',
+    cpuInfo: 'Intel(R) Xeon(R) E3-1245 v5 @ 3.50GHz (4 Cores / 8 Threads)',
+    memoryInfo: '16.00 GB ECC DDR4 (사용 가능: 11.80 GB / 총 16,384 MB)',
+    gpuInfo: 'Intel(R) HD Graphics P530 (Integrated, 1,024 MB)',
     version: '1.2.35',
     opensslVersion: 'OpenSSL 1.0.2u (Legacy PKCS#1)',
     rsaBits: 1024,
@@ -153,9 +172,14 @@ const INITIAL_PEERS: User[] = [
     note: 'OpenSSL 3.0.13 • Supports Legacy v1.0 & Strict v3.0',
     group: '2AD85B20048C4E65F6082539A32DC222',
     address: '192.168.1.21',
+    macAddress: '00:1A:2B:3C:4D:21',
     hostName: 'dev-noble-ws01',
     logonName: 'mchen',
     osName: 'Linux (Ubuntu 24.04 LTS)',
+    osVersionDetail: 'Windows 11 Pro 23H2 (OS Build 22631.4317, 64-bit) / WSL2 Ubuntu 24.04 LTS',
+    cpuInfo: 'AMD Ryzen 7 7800X3D 8-Core Processor @ 4.20GHz (8 Cores / 16 Threads)',
+    memoryInfo: '32.00 GB DDR5-6000 (사용 가능: 24.15 GB / 총 32,768 MB)',
+    gpuInfo: 'NVIDIA GeForce RTX 4070 SUPER (VRAM 12,288 MB GDDR6X)',
     version: '1.3.0',
     opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
     rsaBits: 2048,
@@ -175,9 +199,14 @@ const INITIAL_PEERS: User[] = [
     note: 'In a release review meeting',
     group: '1CD75C10048C4E65F6082539A32DC111',
     address: '192.168.1.55',
+    macAddress: 'A8:60:B6:12:9F:55',
     hostName: 'Hannahs-MacBook-Pro.local',
     logonName: 'hlindqvist',
     osName: 'macOS Sonoma 14.5',
+    osVersionDetail: 'macOS Sonoma 14.5 (Build 23F79, Darwin 23.5.0 arm64)',
+    cpuInfo: 'Apple M3 Pro (12-Core CPU: 6 Performance + 6 Efficiency)',
+    memoryInfo: '36.00 GB Unified LPDDR5 (사용 가능: 22.40 GB / 총 36,864 MB)',
+    gpuInfo: 'Apple M3 Pro 18-Core GPU (Metal 3, Unified VRAM)',
     version: '1.3.0',
     opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
     rsaBits: 2048,
@@ -189,7 +218,13 @@ const INITIAL_PEERS: User[] = [
 
 export function App() {
   const cryptoRef = useRef<LmcCrypto>(new LmcCrypto());
-  const [settings, setSettings] = useState<LmcSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<LmcSettings>(() => {
+    const savedAppTheme = loadAppThemeFromStorage();
+    return {
+      ...DEFAULT_SETTINGS,
+      appTheme: savedAppTheme,
+    };
+  });
   const [connected, setConnected] = useState(true);
 
   const [localUser, setLocalUser] = useState<User>(() => {
@@ -206,9 +241,14 @@ export function App() {
       note: 'Qt 6.10.2 (GCC 15.2.0) • OpenSSL 3.0 <-> 1.0 Interop',
       group: DEFAULT_GROUPS[0].id,
       address: '192.168.1.42',
+      macAddress: 'D8:5E:D3:8A:4C:42',
       hostName: 'ubuntu-26-04-ws',
       logonName: 'alex',
       osName: 'Ubuntu 26.04.1 LTS (Qt 6.10.2 / GCC 15.2.0 x86_64)',
+      osVersionDetail: 'Ubuntu 26.04.1 LTS (Resolute, Kernel 6.14.0-18-generic, Qt 6.10.2 x86_64)',
+      cpuInfo: 'Intel(R) Core(TM) i7-13700K @ 3.40GHz (16 Cores / 24 Threads)',
+      memoryInfo: '32.00 GB DDR5-5600 (사용 가능: 21.60 GB / 총 32,768 MB)',
+      gpuInfo: 'NVIDIA GeForce RTX 4060 Ti (VRAM 8,192 MB GDDR6)',
       version: '1.3.0',
       opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
       rsaBits: 2048,
@@ -592,7 +632,7 @@ export function App() {
         senderId: localUser.id,
         senderName: localUser.name,
         recipientId: peerId,
-        text: 'Message could not be sent because you are not connected.',
+        text: getLabels(settings.language).chatWindow.sendFailedDisconnected,
         timestamp: Date.now(),
         protocolMode,
         wireHeader: 'ERROR',
@@ -970,12 +1010,29 @@ export function App() {
   const currentLocalStatusMeta =
     STATUS_LIST.find((s) => s.code === localUser.status) || STATUS_LIST[0];
 
+  const i18n = getLabels(settings.language);
+  const activeLangCode = normalizeLanguage(settings.language);
+  const themeCfg = getAppThemeConfig(settings.appTheme);
+  const localizedLocalStatusLabel =
+    i18n.status[localUser.status] || currentLocalStatusMeta.label;
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-app-theme', themeCfg.id);
+    }
+  }, [themeCfg.id]);
+
   const activePeer =
     peers.find((p) => p.id === activeChatPeerId) || peers[0];
 
   return (
     <div
-      className="h-screen w-screen flex flex-col bg-[#3a6ea5] overflow-hidden select-none"
+      data-app-theme={themeCfg.id}
+      style={{
+        backgroundColor: themeCfg.desktopBg,
+        color: themeCfg.textPrimary,
+      }}
+      className="h-screen w-screen flex flex-col overflow-hidden select-none transition-colors duration-150"
       onClick={() => {
         setActiveMenu(null);
         setShowStatusDropdown(false);
@@ -989,11 +1046,29 @@ export function App() {
           <span className="font-bold tracking-tight">LAN Messenger v1.3.0</span>
           <span className="hidden md:inline-block text-slate-400">|</span>
           <span className="hidden md:inline-block text-[11px] text-slate-300">
-            UDP Multicast <code className="text-emerald-400">{settings.multicastAddress}:{settings.udpPort}</code>
+            {i18n.topBar.udpMulticast}{' '}
+            <code className="text-emerald-400">
+              {settings.multicastAddress}:{settings.udpPort}
+            </code>
           </span>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Quick Language Toggle in Top Bar (synced with Preferences language switcher) */}
+          <button
+            type="button"
+            onClick={() =>
+              setSettings((prev) => ({
+                ...prev,
+                language: toggleLanguage(prev.language),
+              }))
+            }
+            title={i18n.topBar.langSwitchTooltip}
+            className="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/20 border border-sky-400 text-sky-200 hover:bg-sky-500/30 cursor-pointer flex items-center gap-1"
+          >
+            <span>🌐 {activeLangCode === 'ko_KR' ? '한국어 (ko_KR)' : 'English (en_US)'}</span>
+          </button>
+
           {/* Quick Protocol Compatibility Toggle in Top Bar */}
           <button
             type="button"
@@ -1008,7 +1083,9 @@ export function App() {
                 : 'bg-indigo-500/20 border-indigo-400 text-indigo-200 hover:bg-indigo-500/30'
             }`}
           >
-            <span>Protocol Mode: {settings.protocolMode}</span>
+            <span>
+              {i18n.topBar.protocolMode}: {settings.protocolMode}
+            </span>
             <span className="text-[10px] opacity-80">
               ({settings.protocolMode === 'Legacy v1.0' ? 'PKCS#1 / OpenSSL 1.0 Safe' : 'SPKI / OpenSSL 3.0'})
             </span>
@@ -1019,7 +1096,7 @@ export function App() {
             onClick={() => setShowCryptoInspectorModal(true)}
             className="px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] cursor-pointer flex items-center gap-1"
           >
-            <span>🔍 OpenSSL 3.0 ↔ 1.0 Inspector & ctest (11/11)</span>
+            <span>{i18n.topBar.inspectorBtn}</span>
           </button>
 
           <button
@@ -1028,8 +1105,8 @@ export function App() {
               const next = !connected;
               setConnected(next);
               triggerTrayBalloon(
-                'LAN Messenger',
-                next ? 'You are online.' : 'You are no longer connected.',
+                i18n.mainWindow.title,
+                next ? i18n.topBar.lanOnline : i18n.chatWindow.notConnectedWarning,
                 next ? 'info' : 'warning'
               );
             }}
@@ -1039,7 +1116,7 @@ export function App() {
                 : 'bg-red-900/70 text-red-200 border border-red-500'
             }`}
           >
-            {connected ? '● LAN Online' : '○ Disconnected'}
+            {connected ? i18n.topBar.lanOnline : i18n.topBar.lanDisconnected}
           </button>
         </div>
       </div>
@@ -1047,27 +1124,54 @@ export function App() {
       {/* Main Desktop Area: Left = lmcMainWindow, Right = Open lmcChatWindow(s) */}
       <div className="flex-1 flex gap-3 p-3 min-h-0 overflow-hidden">
         {/* ================= LEFT: lmcMainWindow ================= */}
-        <div className="w-80 sm:w-88 flex flex-col bg-[#ece9d8] border-2 border-[#0054e3] rounded-t-md shadow-2xl overflow-hidden shrink-0">
+        <div
+          style={{
+            backgroundColor: themeCfg.windowBg,
+            borderColor: themeCfg.borderOuter,
+            borderStyle: themeCfg.borderStyle,
+            borderWidth: themeCfg.id === 'high-contrast' ? '3px' : '2px',
+            color: themeCfg.textPrimary,
+          }}
+          className="lmc-window-surface w-80 sm:w-88 flex flex-col rounded-t-md shadow-2xl overflow-hidden shrink-0 transition-colors duration-150"
+        >
           {/* Titlebar */}
-          <div className="h-7 px-2.5 bg-gradient-to-r from-[#0054e3] via-[#2673f2] to-[#0046c7] text-white flex items-center justify-between select-none">
+          <div
+            style={{
+              background: themeCfg.titlebarBg,
+              color: themeCfg.titlebarText,
+              borderBottom:
+                themeCfg.id === 'high-contrast'
+                  ? '2px solid #ffff00'
+                  : themeCfg.id === 'dark'
+                  ? '1px solid #38bdf8'
+                  : 'none',
+            }}
+            className="h-7 px-2.5 flex items-center justify-between select-none"
+          >
             <div className="flex items-center gap-1.5">
               <img src="/resources/images/logo.png" alt="" className="w-4 h-4" />
-              <span className="font-bold text-xs">LAN Messenger</span>
+              <span className="font-bold text-xs">{i18n.mainWindow.title}</span>
             </div>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handleRefreshNetwork}
-                title="Refresh contacts list (F5)"
+                title={i18n.mainWindow.refreshTooltip}
                 className="px-1.5 py-0.5 text-[10px] bg-white/15 hover:bg-white/25 rounded text-white cursor-pointer"
               >
-                Refresh
+                {i18n.mainWindow.refreshBtn}
               </button>
             </div>
           </div>
 
           {/* Main Menu Bar (Messenger | Tools | Help) */}
-          <div className="relative px-1.5 py-0.5 bg-[#ece9d8] border-b border-[#aca899] flex items-center gap-1 text-xs">
+          <div
+            style={{
+              backgroundColor: themeCfg.windowBg,
+              borderColor: themeCfg.borderInner,
+            }}
+            className="relative px-1.5 py-0.5 border-b flex items-center gap-1 text-xs"
+          >
             <button
               type="button"
               onClick={(e) => {
@@ -1078,7 +1182,7 @@ export function App() {
                 activeMenu === 'messenger' ? 'bg-[#0054e3] text-white' : 'hover:bg-[#d6d2c2]'
               }`}
             >
-              <u>M</u>essenger
+              {i18n.mainWindow.menuMessenger}
             </button>
             <button
               type="button"
@@ -1090,7 +1194,7 @@ export function App() {
                 activeMenu === 'tools' ? 'bg-[#0054e3] text-white' : 'hover:bg-[#d6d2c2]'
               }`}
             >
-              <u>T</u>ools
+              {i18n.mainWindow.menuTools}
             </button>
             <button
               type="button"
@@ -1102,7 +1206,7 @@ export function App() {
                 activeMenu === 'help' ? 'bg-[#0054e3] text-white' : 'hover:bg-[#d6d2c2]'
               }`}
             >
-              <u>H</u>elp
+              {i18n.mainWindow.menuHelp}
             </button>
 
             {/* Dropdown Menu: Messenger */}
@@ -1117,7 +1221,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/chatroom.png" alt="" className="w-4 h-4" />
-                  <span>Public Chat... (Ctrl+G)</span>
+                  <span>{i18n.mainWindow.publicChat}</span>
                 </button>
                 <button
                   type="button"
@@ -1128,7 +1232,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/broadcastmsg.png" alt="" className="w-4 h-4" />
-                  <span>Send Broadcast... (Ctrl+B)</span>
+                  <span>{i18n.mainWindow.sendBroadcast}</span>
                 </button>
                 <button
                   type="button"
@@ -1139,7 +1243,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/addcontact.png" alt="" className="w-4 h-4" />
-                  <span>Add New Group...</span>
+                  <span>{i18n.mainWindow.addNewGroup}</span>
                 </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
@@ -1151,7 +1255,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/refresh.png" alt="" className="w-4 h-4" />
-                  <span>Refresh Contacts (F5)</span>
+                  <span>{i18n.mainWindow.refreshContacts}</span>
                 </button>
               </div>
             )}
@@ -1168,7 +1272,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/history.png" alt="" className="w-4 h-4" />
-                  <span>History (Ctrl+H)</span>
+                  <span>{i18n.mainWindow.history}</span>
                 </button>
                 <button
                   type="button"
@@ -1179,7 +1283,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/transfer.png" alt="" className="w-4 h-4" />
-                  <span>File Transfers (Ctrl+J)</span>
+                  <span>{i18n.mainWindow.fileTransfers}</span>
                 </button>
                 <button
                   type="button"
@@ -1190,7 +1294,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/networksettings.png" alt="" className="w-4 h-4" />
-                  <span>OpenSSL 3.0 ↔ 1.0 Inspector</span>
+                  <span>{i18n.mainWindow.cryptoInspector}</span>
                 </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
@@ -1202,7 +1306,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/tools.png" alt="" className="w-4 h-4" />
-                  <span>Preferences... (Ctrl+P)</span>
+                  <span>{i18n.mainWindow.preferences}</span>
                 </button>
               </div>
             )}
@@ -1219,7 +1323,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/question.png" alt="" className="w-4 h-4" />
-                  <span>Help & Protocol Docs (F1)</span>
+                  <span>{i18n.mainWindow.helpDocs}</span>
                 </button>
                 <button
                   type="button"
@@ -1230,7 +1334,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/web.png" alt="" className="w-4 h-4" />
-                  <span>Check for Updates...</span>
+                  <span>{i18n.mainWindow.checkUpdates}</span>
                 </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
@@ -1242,7 +1346,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer"
                 >
                   <img src="/resources/images/info.png" alt="" className="w-4 h-4" />
-                  <span>About LAN Messenger</span>
+                  <span>{i18n.mainWindow.aboutLmc}</span>
                 </button>
               </div>
             )}
@@ -1260,12 +1364,12 @@ export function App() {
                       setShowStatusDropdown((v) => !v);
                       setShowAvatarDropdown(false);
                     }}
-                    title="Change Presence Status"
+                    title={i18n.mainWindow.changeStatusTooltip}
                     className="p-0.5 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] flex items-center gap-1 cursor-pointer"
                   >
                     <img
                       src={currentLocalStatusMeta.icon}
-                      alt={currentLocalStatusMeta.label}
+                      alt={localizedLocalStatusLabel}
                       className="w-5 h-5"
                     />
                     <span className="text-[10px] text-gray-600">▾</span>
@@ -1276,7 +1380,7 @@ export function App() {
                 </div>
 
                 <div className="pl-7 text-[11px] text-gray-600">
-                  {currentLocalStatusMeta.label} • {localUser.address}
+                  {localizedLocalStatusLabel} • {localUser.address}
                 </div>
 
                 {/* Personal Note Input (ui.txtNote) */}
@@ -1285,7 +1389,7 @@ export function App() {
                     type="text"
                     value={localUser.note}
                     onChange={(e) => setLocalUser({ ...localUser, note: e.target.value })}
-                    placeholder="Type a personal note..."
+                    placeholder={i18n.mainWindow.personalNotePlaceholder}
                     className="w-full bg-white border border-[#7f9db9] px-2 py-1 text-xs rounded-xs focus:outline-none focus:border-[#0054e3]"
                   />
                 </div>
@@ -1299,7 +1403,7 @@ export function App() {
                   setShowAvatarDropdown((v) => !v);
                   setShowStatusDropdown(false);
                 }}
-                title="Change Avatar Picture"
+                title={i18n.mainWindow.changeAvatarTooltip}
                 className="w-12 h-12 rounded border border-gray-400 bg-white p-0.5 hover:border-[#0054e3] cursor-pointer shrink-0"
               >
                 <img
@@ -1331,7 +1435,7 @@ export function App() {
                     }`}
                   >
                     <img src={st.icon} alt="" className="w-4 h-4" />
-                    <span>{st.label}</span>
+                    <span>{i18n.status[st.code] || st.label}</span>
                   </button>
                 ))}
               </div>
@@ -1344,7 +1448,7 @@ export function App() {
                 className="absolute top-16 right-2 z-40 w-60 bg-white border border-gray-400 shadow-lg p-2 rounded"
               >
                 <div className="text-[11px] font-semibold text-gray-700 mb-1.5">
-                  Select Avatar
+                  {i18n.mainWindow.selectAvatar}
                 </div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {AVATAR_LIST.map((avPath, idx) => (
@@ -1378,7 +1482,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setShowPublicChatModal(true)}
-                title="Public Chat Room (Ctrl+G)"
+                title={i18n.mainWindow.publicChatTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img src="/resources/images/chatroom.png" alt="Public Chat" className="w-4 h-4" />
@@ -1386,7 +1490,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setShowBroadcastModal(true)}
-                title="Send Broadcast Message (Ctrl+B)"
+                title={i18n.mainWindow.broadcastTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img
@@ -1398,7 +1502,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setShowHistoryModal(true)}
-                title="View Message History (Ctrl+H)"
+                title={i18n.mainWindow.historyTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img src="/resources/images/history.png" alt="History" className="w-4 h-4" />
@@ -1406,7 +1510,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setShowTransfersModal(true)}
-                title="View File Transfers (Ctrl+J)"
+                title={i18n.mainWindow.transfersTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img src="/resources/images/transfer.png" alt="Transfers" className="w-4 h-4" />
@@ -1414,7 +1518,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(true)}
-                title="Preferences (Ctrl+P)"
+                title={i18n.mainWindow.preferencesTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img src="/resources/images/tools.png" alt="Preferences" className="w-4 h-4" />
@@ -1424,10 +1528,10 @@ export function App() {
             <button
               type="button"
               onClick={handleSimulateIncomingFileOffer}
-              title="Simulate incoming file offer from peer"
+              title={i18n.mainWindow.simulateIncomingFileTooltip}
               className="px-2 py-0.5 bg-white hover:bg-blue-50 border border-[#7f9db9] rounded-xs text-[10px] font-medium text-blue-900 cursor-pointer"
             >
-              + Incoming File
+              {i18n.mainWindow.simulateIncomingFile}
             </button>
           </div>
 
@@ -1438,7 +1542,7 @@ export function App() {
                 type="text"
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
-                placeholder="New group name..."
+                placeholder={i18n.mainWindow.newGroupPlaceholder}
                 className="flex-1 bg-white border border-[#7f9db9] px-1.5 py-0.5 text-xs"
               />
               <button
@@ -1455,7 +1559,7 @@ export function App() {
                 }}
                 className="px-2 py-0.5 bg-[#0054e3] text-white text-xs rounded-xs cursor-pointer"
               >
-                Add
+                {i18n.mainWindow.addGroupBtn}
               </button>
             </div>
           )}
@@ -1464,6 +1568,7 @@ export function App() {
           <div className="flex-1 bg-white overflow-y-auto p-1.5 space-y-1.5">
             {groups.map((grp) => {
               const grpPeers = peers.filter((p) => p.group === grp.id);
+              const groupDisplayName = i18n.groups[grp.id] || grp.name;
               return (
                 <div key={grp.id} className="select-none">
                   {/* Group Header Item */}
@@ -1481,7 +1586,7 @@ export function App() {
                       <span className="text-[10px] text-gray-600">
                         {grp.expanded ? '▾' : '▸'}
                       </span>
-                      <span>{grp.name}</span>
+                      <span>{groupDisplayName}</span>
                     </div>
                     <span className="text-[11px] font-normal text-gray-500">
                       ({grpPeers.length})
@@ -1494,6 +1599,7 @@ export function App() {
                       {grpPeers.map((peer) => {
                         const st =
                           STATUS_LIST.find((s) => s.code === peer.status) || STATUS_LIST[0];
+                        const peerStatusLabel = i18n.status[peer.status] || st.label;
                         const isSelected = selectedTreeUserId === peer.id;
                         const isLegacy = peer.opensslVersion.includes('1.0');
 
@@ -1506,7 +1612,7 @@ export function App() {
                             }}
                             title={
                               settings.showStatusTooltip
-                                ? `${peer.name} (${st.label}) — ${peer.address} — ${peer.opensslVersion}`
+                                ? `${peer.name} (${peerStatusLabel}) — ${peer.address} — ${peer.opensslVersion}`
                                 : undefined
                             }
                             className={`rounded-xs px-2 py-1.5 cursor-pointer flex items-center justify-between gap-2 transition-colors ${
@@ -1518,7 +1624,7 @@ export function App() {
                             <div className="flex items-center gap-2 min-w-0">
                               <img
                                 src={st.icon}
-                                alt={st.label}
+                                alt={peerStatusLabel}
                                 className="w-4 h-4 shrink-0"
                               />
                               <div className="min-w-0">
@@ -1579,7 +1685,7 @@ export function App() {
                   onClick={() => handleOpenChat(selectedTreeUserId)}
                   className="px-1.5 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] rounded-xs cursor-pointer"
                 >
-                  Chat
+                  {i18n.mainWindow.actionChat}
                 </button>
                 <button
                   type="button"
@@ -1589,7 +1695,7 @@ export function App() {
                   }}
                   className="px-1.5 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] rounded-xs cursor-pointer"
                 >
-                  Remote
+                  {i18n.mainWindow.actionRemote}
                 </button>
                 <button
                   type="button"
@@ -1599,7 +1705,7 @@ export function App() {
                   }}
                   className="px-1.5 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] rounded-xs cursor-pointer"
                 >
-                  Info
+                  {i18n.mainWindow.actionInfo}
                 </button>
               </div>
             </div>
@@ -1681,11 +1787,10 @@ export function App() {
             <div className="flex-1 bg-[#ece9d8] border-2 border-[#7a96df] rounded flex flex-col items-center justify-center p-6 text-center">
               <img src="/resources/images/logo.png" alt="" className="w-14 h-14 mb-2 opacity-80" />
               <div className="font-bold text-sm text-slate-800">
-                No Active Conversation Window
+                {i18n.mainWindow.noActiveConversationTitle}
               </div>
               <p className="text-xs text-gray-600 mt-1 max-w-md">
-                Click any contact in the <b>LAN Messenger</b> contact list on the left to open an
-                encrypted P2P chat window.
+                {i18n.mainWindow.noActiveConversationDesc}
               </p>
             </div>
           )}
@@ -1695,10 +1800,11 @@ export function App() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-emerald-400 font-bold">
-                  ● Live Wire Datagram Stream (tcpnetwork.cpp / datagram.cpp)
+                  {i18n.mainWindow.liveWireStreamTitle}
                 </span>
                 <span className="text-slate-400 hidden sm:inline">
-                  | Active Mode: <b className="text-amber-300">{settings.protocolMode}</b>
+                  | {i18n.mainWindow.activeModeLabel}:{' '}
+                  <b className="text-amber-300">{settings.protocolMode}</b>
                 </span>
               </div>
               <button
@@ -1706,7 +1812,7 @@ export function App() {
                 onClick={() => setShowCryptoInspectorModal(true)}
                 className="text-blue-400 hover:underline cursor-pointer"
               >
-                Open Full Inspector & ctest Suite →
+                {i18n.mainWindow.openFullInspectorLink}
               </button>
             </div>
 
@@ -1764,6 +1870,7 @@ export function App() {
           users={peers}
           groups={groups}
           protocolMode={settings.protocolMode}
+          language={settings.language}
           onSendBroadcast={handleSendBroadcast}
           onClose={() => setShowBroadcastModal(false)}
         />
@@ -1799,6 +1906,7 @@ export function App() {
       {showTransfersModal && (
         <TransferWindowModal
           transfers={transfers}
+          language={settings.language}
           onAccept={(id) => handleFileAction(id, '', 'accept')}
           onDecline={(id) => handleFileAction(id, '', 'decline')}
           onCancel={(id) => handleFileAction(id, '', 'cancel')}
@@ -1822,6 +1930,7 @@ export function App() {
       {inspectingUser && (
         <UserInfoWindowModal
           user={inspectingUser}
+          language={settings.language}
           onClose={() => setInspectingUser(null)}
         />
       )}
@@ -1848,6 +1957,7 @@ export function App() {
           settings={settings}
           localUser={localUser}
           onSaveSettings={(next) => {
+            saveAppThemeToStorage(next.appTheme);
             setSettings(next);
             setLocalUser((prev) => ({
               ...prev,
@@ -1861,6 +1971,7 @@ export function App() {
             }
           }}
           onResetSettings={() => {
+            saveAppThemeToStorage(DEFAULT_SETTINGS.appTheme);
             setSettings(DEFAULT_SETTINGS);
             handleToggleProtocolMode('Legacy v1.0');
           }}
@@ -1871,11 +1982,17 @@ export function App() {
       )}
 
       {showUpdateModal && (
-        <UpdateWindowModal onClose={() => setShowUpdateModal(false)} />
+        <UpdateWindowModal
+          language={settings.language}
+          onClose={() => setShowUpdateModal(false)}
+        />
       )}
 
       {showAboutModal && (
-        <AboutDialogModal onClose={() => setShowAboutModal(false)} />
+        <AboutDialogModal
+          language={settings.language}
+          onClose={() => setShowAboutModal(false)}
+        />
       )}
     </div>
   );

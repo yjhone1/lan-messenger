@@ -8,6 +8,150 @@
   }
 }
 
+/* ==========================================================================
+   Global Real-Time Application Theme Tokens (Classic Windows / Dark / High-Contrast)
+   ========================================================================== */
+[data-app-theme="classic"] {
+  --lmc-desktop-bg: #3a6ea5;
+  --lmc-window-bg: #ece9d8;
+  --lmc-panel-bg: #ffffff;
+  --lmc-subpanel-bg: #f5f4ee;
+  --lmc-text-primary: #0f172a;
+  --lmc-text-secondary: #475569;
+  --lmc-border-outer: #0054e3;
+  --lmc-border-inner: #aca899;
+  --lmc-border-style: solid;
+  --lmc-border-width: 2px;
+  --lmc-titlebar-bg: linear-gradient(90deg, #0054e3 0%, #2673f2 50%, #0046c7 100%);
+  --lmc-titlebar-text: #ffffff;
+  --lmc-btn-bg: #e1dfd2;
+  --lmc-btn-text: #0f172a;
+  --lmc-btn-border: #7f9db9;
+}
+
+[data-app-theme="dark"] {
+  --lmc-desktop-bg: #0b1120;
+  --lmc-window-bg: #1e293b;
+  --lmc-panel-bg: #0f172a;
+  --lmc-subpanel-bg: #1e293b;
+  --lmc-text-primary: #f1f5f9;
+  --lmc-text-secondary: #94a3b8;
+  --lmc-border-outer: #38bdf8;
+  --lmc-border-inner: #475569;
+  --lmc-border-style: solid;
+  --lmc-border-width: 2px;
+  --lmc-titlebar-bg: linear-gradient(90deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+  --lmc-titlebar-text: #38bdf8;
+  --lmc-btn-bg: #334155;
+  --lmc-btn-text: #f8fafc;
+  --lmc-btn-border: #64748b;
+  color: #f1f5f9;
+}
+
+[data-app-theme="high-contrast"] {
+  --lmc-desktop-bg: #000000;
+  --lmc-window-bg: #000000;
+  --lmc-panel-bg: #000000;
+  --lmc-subpanel-bg: #0a0a0a;
+  --lmc-text-primary: #ffff00;
+  --lmc-text-secondary: #00ffff;
+  --lmc-border-outer: #ffff00;
+  --lmc-border-inner: #ffffff;
+  --lmc-border-style: double;
+  --lmc-border-width: 3px;
+  --lmc-titlebar-bg: linear-gradient(90deg, #000000 0%, #1a1a00 100%);
+  --lmc-titlebar-text: #ffff00;
+  --lmc-btn-bg: #000000;
+  --lmc-btn-text: #ffff00;
+  --lmc-btn-border: #ffff00;
+  color: #ffff00;
+}
+
+/* Dark Mode cascade for classic beige/white panels, inputs, and borders */
+[data-app-theme="dark"] .lmc-window-surface {
+  background-color: #1e293b !important;
+  border-color: #38bdf8 !important;
+  border-style: solid !important;
+  color: #f1f5f9 !important;
+}
+
+[data-app-theme="dark"] .bg-\[\#ece9d8\],
+[data-app-theme="dark"] .bg-\[\#f5f4ee\],
+[data-app-theme="dark"] .bg-\[\#f0efe8\] {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+[data-app-theme="dark"] .bg-white {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+[data-app-theme="dark"] .text-slate-900,
+[data-app-theme="dark"] .text-slate-800,
+[data-app-theme="dark"] .text-slate-700,
+[data-app-theme="dark"] .text-gray-700,
+[data-app-theme="dark"] .text-gray-600 {
+  color: #e2e8f0 !important;
+}
+
+[data-app-theme="dark"] input,
+[data-app-theme="dark"] select,
+[data-app-theme="dark"] textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+[data-app-theme="dark"] fieldset {
+  border-color: #475569 !important;
+}
+
+/* High Contrast Mode cascade for maximum contrast backgrounds and borders */
+[data-app-theme="high-contrast"] .lmc-window-surface {
+  background-color: #000000 !important;
+  border-color: #ffff00 !important;
+  border-style: double !important;
+  border-width: 3px !important;
+  color: #ffff00 !important;
+}
+
+[data-app-theme="high-contrast"] .bg-\[\#ece9d8\],
+[data-app-theme="high-contrast"] .bg-\[\#f5f4ee\],
+[data-app-theme="high-contrast"] .bg-\[\#f0efe8\],
+[data-app-theme="high-contrast"] .bg-white {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border-color: #ffffff !important;
+}
+
+[data-app-theme="high-contrast"] .text-slate-900,
+[data-app-theme="high-contrast"] .text-slate-800,
+[data-app-theme="high-contrast"] .text-slate-700,
+[data-app-theme="high-contrast"] .text-gray-700,
+[data-app-theme="high-contrast"] .text-gray-600,
+[data-app-theme="high-contrast"] .text-gray-500 {
+  color: #ffff00 !important;
+}
+
+[data-app-theme="high-contrast"] input,
+[data-app-theme="high-contrast"] select,
+[data-app-theme="high-contrast"] textarea {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border: 2px solid #00ffff !important;
+}
+
+[data-app-theme="high-contrast"] fieldset {
+  border: 2px solid #ffff00 !important;
+  background-color: #000000 !important;
+}
+
+[data-app-theme="high-contrast"] button {
+  border-color: #ffff00 !important;
+}
+
 /* Classic Qt / Windows desktop scrollbar styling */
 ::-webkit-scrollbar {
   width: 10px;
@@ -15,8 +159,8 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #ece9d8;
-  border-left: 1px solid #d4d0c8;
+  background: var(--lmc-window-bg, #ece9d8);
+  border-left: 1px solid var(--lmc-border-inner, #d4d0c8);
 }
 
 ::-webkit-scrollbar-thumb {

@@ -315,15 +315,23 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
   lastName = lastName.isEmpty() ? "N/A" : lastName;
   about = about.isEmpty() ? "N/A" : about;
 
+  QString macAddress = pNetwork ? pNetwork->physicalAddress() : QString();
+  if(macAddress.isEmpty())
+    macAddress = Helper::getMacAddress();
+
   pMessage->addData(XN_USERID, localUser->id);
   pMessage->addData(XN_NAME, localUser->name);
   pMessage->addData(XN_ADDRESS, localUser->address);
+  pMessage->addData(XN_MACADDRESS, macAddress);
   pMessage->addData(XN_VERSION, localUser->version);
   pMessage->addData(XN_STATUS, localUser->status);
   pMessage->addData(XN_NOTE, localUser->note);
   pMessage->addData(XN_LOGON, Helper::getLogonName());
   pMessage->addData(XN_HOST, Helper::getHostName());
   pMessage->addData(XN_OS, Helper::getOSName());
+  pMessage->addData(XN_CPU, Helper::getCpuInfo());
+  pMessage->addData(XN_MEMORY, Helper::getMemoryInfo());
+  pMessage->addData(XN_GPU, Helper::getGpuInfo());
   pMessage->addData(XN_FIRSTNAME, firstName);
   pMessage->addData(XN_LASTNAME, lastName);
   pMessage->addData(XN_ABOUT, about);

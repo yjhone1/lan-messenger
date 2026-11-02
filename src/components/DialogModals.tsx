@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  AppUiTheme,
   ChatMessage,
   FileTransferItem,
   Group,
@@ -19,21 +20,55 @@ import {
   runTstCryptoSuite,
 } from '../services/cryptoEngine';
 import { ThemedMessageLog } from './ChatWindow';
+import {
+  getAppThemeConfig,
+  getLabels,
+  normalizeAppTheme,
+  normalizeLanguage,
+  saveAppThemeToStorage,
+  SupportedLanguage,
+} from '../utils/i18n';
 
-// Shared Classic Window Frame wrapper
+// Shared Classic / Dark / High-Contrast Window Frame wrapper
 const WindowFrame: React.FC<{
   title: string;
   icon: string;
   onClose: () => void;
   widthClass?: string;
+  appTheme?: AppUiTheme;
   children: React.ReactNode;
-}> = ({ title, icon, onClose, widthClass = 'max-w-2xl w-full', children }) => {
+}> = ({ title, icon, onClose, widthClass = 'max-w-2xl w-full', appTheme, children }) => {
+  const domTheme =
+    typeof document !== 'undefined'
+      ? (document.documentElement.getAttribute('data-app-theme') as AppUiTheme | null)
+      : null;
+  const themeCfg = getAppThemeConfig(appTheme || domTheme || 'classic');
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-3">
+    <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-3">
       <div
-        className={`${widthClass} bg-[#ece9d8] border-2 border-[#0054e3] rounded-t-md shadow-2xl flex flex-col overflow-hidden max-h-[90vh]`}
+        style={{
+          backgroundColor: themeCfg.windowBg,
+          borderColor: themeCfg.borderOuter,
+          borderStyle: themeCfg.borderStyle,
+          borderWidth: themeCfg.id === 'high-contrast' ? '3px' : '2px',
+          color: themeCfg.textPrimary,
+        }}
+        className={`${widthClass} lmc-window-surface rounded-t-md shadow-2xl flex flex-col overflow-hidden max-h-[90vh] transition-colors duration-150`}
       >
-        <div className="h-7 px-2.5 bg-gradient-to-r from-[#0054e3] via-[#2673f2] to-[#0046c7] text-white flex items-center justify-between select-none shrink-0">
+        <div
+          style={{
+            background: themeCfg.titlebarBg,
+            color: themeCfg.titlebarText,
+            borderBottom:
+              themeCfg.id === 'high-contrast'
+                ? '2px solid #ffff00'
+                : themeCfg.id === 'dark'
+                ? '1px solid #38bdf8'
+                : 'none',
+          }}
+          className="h-7 px-2.5 flex items-center justify-between select-none shrink-0"
+        >
           <div className="flex items-center gap-1.5">
             <img src={icon} alt="" className="w-4 h-4" />
             <span className="font-bold text-xs">{title}</span>
@@ -57,11 +92,13 @@ export const BroadcastWindowModal: React.FC<{
   users: User[];
   groups: Group[];
   protocolMode: ProtocolHeaderMode;
+  language?: string;
   onSendBroadcast: (recipientIds: string[], text: string) => void;
   onClose: () => void;
-}> = ({ users, groups, protocolMode, onSendBroadcast, onClose }) => {
+}> = ({ users, groups, protocolMode, language = 'en_US', onSendBroadcast, onClose }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>(users.map((u) => u.id));
   const [messageText, setMessageText] = useState('');
+  const i18n = getLabels(language);
 
   const toggleUser = (id: string) => {
     setSelectedIds((prev) =>
@@ -80,7 +117,7 @@ export const BroadcastWindowModal: React.FC<{
 
   return (
     <WindowFrame
-      title="Send Broadcast Message"
+      title={i18n.modals.broadcast.title}
       icon="/resources/images/broadcastmsg.png"
       onClose={onClose}
       widthClass="max-w-xl w-full"
@@ -90,12 +127,12 @@ export const BroadcastWindowModal: React.FC<{
           {/* Message editor */}
           <div className="sm:col-span-3 flex flex-col">
             <label className="text-xs font-semibold text-slate-800 mb-1">
-              Broadcast Message ({protocolMode === 'Legacy v1.0' ? 'BRDCST' : 'BRDv30'}):
+              {i18n.modals.broadcast.messageLabel} ({protocolMode === 'Legacy v1.0' ? 'BRDCST' : 'BRDv30'}):
             </label>
             <textarea
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
-              placeholder="Enter broadcast announcement for selected LAN peers..."
+              placeholder={i18n.modals.broadcast.placeholder}
               className="flex-1 min-h-[160px] bg-white border border-[#7f9db9] p-2 text-xs focus:outline-none focus:border-[#0054e3] resize-none"
             />
           </div>
@@ -103,7 +140,7 @@ export const BroadcastWindowModal: React.FC<{
           {/* Recipient Tree */}
           <div className="sm:col-span-2 flex flex-col">
             <label className="text-xs font-semibold text-slate-800 mb-1">
-              Select Recipients ({selectedIds.length}/{users.length}):
+              {i18n.modals.broadcast.selectRecipientsLabel} ({selectedIds.length}/{users.length}):
             </label>
             <div className="flex-1 min-h-[160px] max-h-48 overflow-y-auto bg-white border border-[#7f9db9] p-1.5 space-y-1.5">
               {groups.map((grp) => {
@@ -112,7 +149,7 @@ export const BroadcastWindowModal: React.FC<{
                 return (
                   <div key={grp.id}>
                     <div className="text-[11px] font-bold text-slate-700 bg-gray-100 px-1 py-0.5">
-                      ▾ {grp.name}
+                      ▾ {i18n.groups[grp.id] || grp.name}
                     </div>
                     <div className="pl-2 pt-1 space-y-1">
                       {groupUsers.map((u) => (
@@ -147,14 +184,14 @@ export const BroadcastWindowModal: React.FC<{
                 onClick={handleSelectAll}
                 className="px-2 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-[11px] cursor-pointer"
               >
-                Select All
+                {i18n.modals.broadcast.selectAll}
               </button>
               <button
                 type="button"
                 onClick={handleSelectNone}
                 className="px-2 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-[11px] cursor-pointer"
               >
-                Select None
+                {i18n.modals.broadcast.selectNone}
               </button>
             </div>
           </div>
@@ -167,14 +204,14 @@ export const BroadcastWindowModal: React.FC<{
             onClick={handleSend}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] disabled:opacity-40 border border-[#0054e3] font-semibold text-xs cursor-pointer"
           >
-            Send
+            {i18n.modals.broadcast.send}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Cancel
+            {i18n.modals.broadcast.cancel}
           </button>
         </div>
       </div>
@@ -193,6 +230,7 @@ export const ChatRoomWindowModal: React.FC<{
   onClose: () => void;
 }> = ({ localUser, users, messages, settings, onSendPublicMessage, onOpenUserInfo, onClose }) => {
   const [text, setText] = useState('');
+  const i18n = getLabels(settings.language);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -203,7 +241,7 @@ export const ChatRoomWindowModal: React.FC<{
 
   return (
     <WindowFrame
-      title="Public Chat - LAN Multicast Room (239.255.100.100)"
+      title={i18n.modals.publicChat.title}
       icon="/resources/images/chatroom.png"
       onClose={onClose}
       widthClass="max-w-3xl w-full"
@@ -223,7 +261,9 @@ export const ChatRoomWindowModal: React.FC<{
           {/* Right: Participants List */}
           <div className="w-52 bg-white flex flex-col shrink-0">
             <div className="px-2 py-1.5 bg-[#f5f4ee] border-b border-[#d4d0c8] font-bold text-xs text-slate-800 flex items-center justify-between">
-              <span>Participants ({users.length + 1})</span>
+              <span>
+                {i18n.modals.publicChat.participantsLabel} ({users.length + 1})
+              </span>
               <img src="/resources/images/addcontact.png" alt="" className="w-4 h-4" />
             </div>
             <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
@@ -237,7 +277,7 @@ export const ChatRoomWindowModal: React.FC<{
                   >
                     <img src={st.icon} alt="" className="w-3.5 h-3.5 shrink-0" />
                     <span className="font-medium truncate">
-                      {u.name} {u.id === localUser.id ? '(You)' : ''}
+                      {u.name} {u.id === localUser.id ? i18n.modals.publicChat.youSuffix : ''}
                     </span>
                   </div>
                 );
@@ -258,7 +298,7 @@ export const ChatRoomWindowModal: React.FC<{
                 handleSend();
               }
             }}
-            placeholder="Send message to Public Chat Room..."
+            placeholder={i18n.modals.publicChat.inputPlaceholder}
             className="flex-1 bg-white border border-[#7f9db9] px-2 py-1.5 text-xs focus:outline-none focus:border-[#0054e3]"
           />
           <button
@@ -266,7 +306,7 @@ export const ChatRoomWindowModal: React.FC<{
             onClick={handleSend}
             className="px-4 py-1.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold text-xs cursor-pointer"
           >
-            Send
+            {i18n.modals.publicChat.send}
           </button>
         </div>
       </div>
@@ -277,15 +317,17 @@ export const ChatRoomWindowModal: React.FC<{
 // 3. File Transfers Window (lmcTransferWindow)
 export const TransferWindowModal: React.FC<{
   transfers: FileTransferItem[];
+  language?: string;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
   onCancel: (id: string) => void;
   onClearCompleted: () => void;
   onClose: () => void;
-}> = ({ transfers, onAccept, onDecline, onCancel, onClearCompleted, onClose }) => {
+}> = ({ transfers, language = 'en_US', onAccept, onDecline, onCancel, onClearCompleted, onClose }) => {
+  const i18n = getLabels(language);
   return (
     <WindowFrame
-      title="File Transfers"
+      title={i18n.modals.transfers.title}
       icon="/resources/images/transfer.png"
       onClose={onClose}
       widthClass="max-w-xl w-full"
@@ -293,21 +335,21 @@ export const TransferWindowModal: React.FC<{
       <div className="flex flex-col h-[380px]">
         <div className="px-2.5 py-1.5 bg-[#f5f4ee] border-b border-[#aca899] flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-700">
-            Active & Completed Transfers ({transfers.length})
+            {i18n.modals.transfers.headerCount} ({transfers.length})
           </span>
           <button
             type="button"
             onClick={onClearCompleted}
             className="px-2.5 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Clear List
+            {i18n.modals.transfers.clearList}
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white divide-y divide-gray-200">
           {transfers.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-400 text-xs italic">
-              No file transfers recorded.
+              {i18n.modals.transfers.emptyText}
             </div>
           ) : (
             transfers.map((tr) => {
@@ -335,7 +377,9 @@ export const TransferWindowModal: React.FC<{
                         {tr.fileName}
                       </span>
                       <span className="text-[11px] text-gray-500">
-                        {tr.mode === 'send' ? `To ${tr.peerName}` : `From ${tr.peerName}`}
+                        {tr.mode === 'send'
+                          ? `${i18n.modals.transfers.toPrefix} ${tr.peerName}`
+                          : `${i18n.modals.transfers.fromPrefix} ${tr.peerName}`}
                       </span>
                     </div>
 
@@ -372,7 +416,7 @@ export const TransferWindowModal: React.FC<{
                         <button
                           type="button"
                           onClick={() => onAccept(tr.id)}
-                          title="Accept"
+                          title={i18n.chatWindow.accept}
                           className="p-1 bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 rounded cursor-pointer"
                         >
                           <img src="/resources/images/accept.png" alt="Accept" className="w-4 h-4" />
@@ -380,7 +424,7 @@ export const TransferWindowModal: React.FC<{
                         <button
                           type="button"
                           onClick={() => onDecline(tr.id)}
-                          title="Decline"
+                          title={i18n.chatWindow.decline}
                           className="p-1 bg-red-100 hover:bg-red-200 border border-red-400 rounded cursor-pointer"
                         >
                           <img src="/resources/images/stop.png" alt="Decline" className="w-4 h-4" />
@@ -391,10 +435,10 @@ export const TransferWindowModal: React.FC<{
                       <button
                         type="button"
                         onClick={() => onCancel(tr.id)}
-                        title="Cancel"
+                        title={i18n.chatWindow.cancel}
                         className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 border border-gray-400 text-[11px] rounded cursor-pointer"
                       >
-                        Cancel
+                        {i18n.chatWindow.cancel}
                       </button>
                     )}
                   </div>
@@ -410,7 +454,7 @@ export const TransferWindowModal: React.FC<{
             onClick={onClose}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Close
+            {i18n.modals.transfers.close}
           </button>
         </div>
       </div>
@@ -428,6 +472,7 @@ export const HistoryWindowModal: React.FC<{
 }> = ({ history, localUser, settings, onClearHistory, onClose }) => {
   const [selectedId, setSelectedId] = useState<string>(history[0]?.id || '');
   const [searchFilter, setSearchFilter] = useState('');
+  const i18n = getLabels(settings.language);
 
   const filtered = history.filter(
     (h) =>
@@ -439,7 +484,7 @@ export const HistoryWindowModal: React.FC<{
 
   return (
     <WindowFrame
-      title="Message History"
+      title={i18n.modals.history.title}
       icon="/resources/images/history.png"
       onClose={onClose}
       widthClass="max-w-3xl w-full"
@@ -450,7 +495,7 @@ export const HistoryWindowModal: React.FC<{
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Filter conversations by user or keyword..."
+            placeholder={i18n.modals.history.searchPlaceholder}
             className="w-64 bg-white border border-[#7f9db9] px-2 py-1 text-xs focus:outline-none focus:border-[#0054e3]"
           />
           <button
@@ -458,7 +503,7 @@ export const HistoryWindowModal: React.FC<{
             onClick={onClearHistory}
             className="px-3 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Clear History
+            {i18n.modals.history.clearHistory}
           </button>
         </div>
 
@@ -466,7 +511,9 @@ export const HistoryWindowModal: React.FC<{
           {/* Left Tree: Conversation list */}
           <div className="w-60 bg-white border-r border-[#aca899] overflow-y-auto divide-y divide-gray-100">
             {filtered.length === 0 ? (
-              <div className="p-4 text-xs text-gray-400 italic text-center">No saved history</div>
+              <div className="p-4 text-xs text-gray-400 italic text-center">
+                {i18n.modals.history.emptyText}
+              </div>
             ) : (
               filtered.map((rec) => (
                 <div
@@ -502,7 +549,7 @@ export const HistoryWindowModal: React.FC<{
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">
-                Select a conversation on the left to inspect its message log.
+                {i18n.modals.history.selectPrompt}
               </div>
             )}
           </div>
@@ -514,7 +561,7 @@ export const HistoryWindowModal: React.FC<{
             onClick={onClose}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Close
+            {i18n.modals.history.close}
           </button>
         </div>
       </div>
@@ -525,17 +572,19 @@ export const HistoryWindowModal: React.FC<{
 // 5. User Info Window (lmcUserInfoWindow)
 export const UserInfoWindowModal: React.FC<{
   user: User;
+  language?: string;
   onClose: () => void;
-}> = ({ user, onClose }) => {
+}> = ({ user, language = 'en_US', onClose }) => {
   const [tab, setTab] = useState<'general' | 'system'>('general');
   const st = STATUS_LIST.find((s) => s.code === user.status) || STATUS_LIST[0];
+  const i18n = getLabels(language);
 
   return (
     <WindowFrame
-      title={`${user.name} - User Information`}
+      title={`${user.name} - ${i18n.modals.userInfo.titleSuffix}`}
       icon="/resources/images/usersettings.png"
       onClose={onClose}
-      widthClass="max-w-lg w-full"
+      widthClass="max-w-xl w-full"
     >
       <div className="p-3">
         {/* Tabs */}
@@ -549,7 +598,7 @@ export const UserInfoWindowModal: React.FC<{
                 : 'bg-[#e1dfd2] border-transparent text-gray-600'
             }`}
           >
-            General & Personal
+            {i18n.modals.userInfo.tabGeneral}
           </button>
           <button
             type="button"
@@ -560,7 +609,7 @@ export const UserInfoWindowModal: React.FC<{
                 : 'bg-[#e1dfd2] border-transparent text-gray-600'
             }`}
           >
-            System & OpenSSL Crypto
+            {i18n.modals.userInfo.tabSystem}
           </button>
         </div>
 
@@ -576,53 +625,107 @@ export const UserInfoWindowModal: React.FC<{
                 <div className="font-bold text-sm text-slate-900">{user.name}</div>
                 <div className="flex items-center gap-1.5 text-gray-600 mt-0.5">
                   <img src={st.icon} alt="" className="w-3.5 h-3.5" />
-                  <span>{st.label}</span>
+                  <span>{i18n.status[user.status] || st.label}</span>
                 </div>
                 {user.note && <div className="text-gray-500 italic mt-0.5">"{user.note}"</div>}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <span className="font-semibold text-gray-600">First Name:</span>
+            <div className="grid grid-cols-3 gap-1.5 pb-2.5 border-b border-gray-200">
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.firstName}</span>
               <span className="col-span-2">{user.firstName || 'N/A'}</span>
 
-              <span className="font-semibold text-gray-600">Last Name:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.lastName}</span>
               <span className="col-span-2">{user.lastName || 'N/A'}</span>
 
-              <span className="font-semibold text-gray-600">About:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.about}</span>
               <span className="col-span-2">{user.about || 'No description provided.'}</span>
+            </div>
+
+            {/* Hardware & OS Summary directly visible in General tab */}
+            <div className="space-y-1.5 pt-0.5" data-testid="user-info-hardware-summary">
+              <div className="font-bold text-blue-900 text-[11px] uppercase tracking-wide">
+                {i18n.modals.userInfo.hardwareSectionTitle}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-50 border border-gray-200 rounded p-2">
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.osDetail}</span>
+                <span className="col-span-2 font-medium text-slate-900" data-testid="userinfo-os-detail">
+                  {user.osVersionDetail || user.osName}
+                </span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.cpu}</span>
+                <span className="col-span-2 text-slate-800" data-testid="userinfo-cpu">
+                  {user.cpuInfo}
+                </span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.memory}</span>
+                <span className="col-span-2 text-slate-800" data-testid="userinfo-memory">
+                  {user.memoryInfo}
+                </span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.gpu}</span>
+                <span className="col-span-2 text-slate-800" data-testid="userinfo-gpu">
+                  {user.gpuInfo}
+                </span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.macAddress}</span>
+                <span className="col-span-2 font-mono font-semibold text-emerald-800" data-testid="userinfo-mac">
+                  {user.macAddress}
+                </span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.ipAddress}</span>
+                <span className="col-span-2 font-mono">{user.address} ({user.hostName})</span>
+              </div>
             </div>
           </div>
         ) : (
           <div className="bg-white border border-[#aca899] p-3 space-y-2.5 text-xs">
             <div className="grid grid-cols-3 gap-1.5">
-              <span className="font-semibold text-gray-600">IP Address:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.ipAddress}</span>
               <span className="col-span-2 font-mono">{user.address}</span>
 
-              <span className="font-semibold text-gray-600">Host Name:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.macAddress}</span>
+              <span className="col-span-2 font-mono font-semibold text-emerald-800">
+                {user.macAddress}
+              </span>
+
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.hostName}</span>
               <span className="col-span-2 font-mono">{user.hostName}</span>
 
-              <span className="font-semibold text-gray-600">Logon Name:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.logonName}</span>
               <span className="col-span-2 font-mono">{user.logonName}</span>
 
-              <span className="font-semibold text-gray-600">Operating System:</span>
-              <span className="col-span-2">{user.osName}</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.osDetail}</span>
+              <span className="col-span-2 font-medium text-slate-900">
+                {user.osVersionDetail || user.osName}
+              </span>
 
-              <span className="font-semibold text-gray-600">LMC Version:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.cpu}</span>
+              <span className="col-span-2">{user.cpuInfo}</span>
+
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.memory}</span>
+              <span className="col-span-2">{user.memoryInfo}</span>
+
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.gpu}</span>
+              <span className="col-span-2">{user.gpuInfo}</span>
+
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.version}</span>
               <span className="col-span-2">{user.version}</span>
 
-              <span className="font-semibold text-gray-600">Crypto Stack:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.cryptoStack}</span>
               <span className="col-span-2 font-semibold text-blue-800">{user.opensslVersion}</span>
 
-              <span className="font-semibold text-gray-600">RSA Key Size:</span>
+              <span className="font-semibold text-gray-600">{i18n.modals.userInfo.rsaKeySize}</span>
               <span className="col-span-2">
                 {user.rsaBits}-bit ({user.rsaBits === 1024 ? '128B OAEP Envelope' : '256B OAEP Envelope'})
               </span>
             </div>
 
             <div>
-              <div className="font-semibold text-gray-600 mb-1">Peer Public Key PEM:</div>
-              <pre className="bg-slate-900 text-emerald-400 p-2 rounded text-[10px] font-mono overflow-x-auto max-h-28">
+              <div className="font-semibold text-gray-600 mb-1">
+                {i18n.modals.userInfo.publicKeyPem}
+              </div>
+              <pre className="bg-slate-900 text-emerald-400 p-2 rounded text-[10px] font-mono overflow-x-auto max-h-24">
                 {user.publicKeyPem}
               </pre>
             </div>
@@ -635,7 +738,7 @@ export const UserInfoWindowModal: React.FC<{
             onClick={onClose}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold text-xs cursor-pointer"
           >
-            OK
+            {i18n.modals.userInfo.ok}
           </button>
         </div>
       </div>
@@ -1078,16 +1181,36 @@ export const SettingsDialogModal: React.FC<{
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [newBroadcastIp, setNewBroadcastIp] = useState('');
 
+  // Active i18n dictionary reflects the selected language in draft immediately
+  const activeLang: SupportedLanguage = normalizeLanguage(draft.language);
+  const activeAppTheme: AppUiTheme = normalizeAppTheme(draft.appTheme);
+  const themeCfg = getAppThemeConfig(activeAppTheme);
+  const i18n = getLabels(activeLang);
+
+  const handleLanguageChange = (nextLang: SupportedLanguage) => {
+    const nextDraft = { ...draft, language: nextLang };
+    setDraft(nextDraft);
+    onSaveSettings(nextDraft);
+  };
+
+  const handleAppThemeChange = (nextThemeValue: string) => {
+    const nextTheme = saveAppThemeToStorage(nextThemeValue);
+    const nextDraft = { ...draft, appTheme: nextTheme };
+    setDraft(nextDraft);
+    // Apply theme change immediately to parent settings so app-wide background and borders update in real time
+    onSaveSettings(nextDraft);
+  };
+
   const categories = [
-    { name: 'General', icon: '/resources/images/systemsettings.png' },
-    { name: 'Account', icon: '/resources/images/usersettings.png' },
-    { name: 'Messages', icon: '/resources/images/messagesettings.png' },
-    { name: 'History', icon: '/resources/images/historysettings.png' },
-    { name: 'Alerts', icon: '/resources/images/alertsettings.png' },
-    { name: 'Network', icon: '/resources/images/networksettings.png' },
-    { name: 'File Transfer', icon: '/resources/images/transfersettings.png' },
-    { name: 'Theme', icon: '/resources/images/themesettings.png' },
-    { name: 'Hotkeys', icon: '/resources/images/hotkeysettings.png' },
+    { key: 'general', name: i18n.preferences.categories.general, icon: '/resources/images/systemsettings.png' },
+    { key: 'account', name: i18n.preferences.categories.account, icon: '/resources/images/usersettings.png' },
+    { key: 'messages', name: i18n.preferences.categories.messages, icon: '/resources/images/messagesettings.png' },
+    { key: 'history', name: i18n.preferences.categories.history, icon: '/resources/images/historysettings.png' },
+    { key: 'alerts', name: i18n.preferences.categories.alerts, icon: '/resources/images/alertsettings.png' },
+    { key: 'network', name: i18n.preferences.categories.network, icon: '/resources/images/networksettings.png' },
+    { key: 'fileTransfer', name: i18n.preferences.categories.fileTransfer, icon: '/resources/images/transfersettings.png' },
+    { key: 'theme', name: i18n.preferences.categories.theme, icon: '/resources/images/themesettings.png' },
+    { key: 'hotkeys', name: i18n.preferences.categories.hotkeys, icon: '/resources/images/hotkeysettings.png' },
   ];
 
   // Sample messages for Theme live preview (matching lmcSettingsDialog::cboTheme_currentIndexChanged)
@@ -1098,7 +1221,10 @@ export const SettingsDialogModal: React.FC<{
       senderId: 'jack',
       senderName: 'Jack',
       recipientId: localUser.id,
-      text: 'Hello, this is an incoming message.',
+      text:
+        activeLang === 'ko_KR'
+          ? '안녕하세요, 수신된 메시지 미리보기입니다.'
+          : 'Hello, this is an incoming message.',
       timestamp: Date.now() - 120000,
       protocolMode: draft.protocolMode,
       wireHeader: draft.protocolMode === 'Legacy v1.0' ? 'MESSAG' : 'MSGv30',
@@ -1111,7 +1237,10 @@ export const SettingsDialogModal: React.FC<{
       senderId: 'jack',
       senderName: 'Jack',
       recipientId: localUser.id,
-      text: 'Hello, this is a consecutive incoming message :-)',
+      text:
+        activeLang === 'ko_KR'
+          ? '연속으로 수신된 메시지입니다 :-)'
+          : 'Hello, this is a consecutive incoming message :-)',
       timestamp: Date.now() - 115000,
       protocolMode: draft.protocolMode,
       wireHeader: draft.protocolMode === 'Legacy v1.0' ? 'MESSAG' : 'MSGv30',
@@ -1124,7 +1253,10 @@ export const SettingsDialogModal: React.FC<{
       senderId: 'jack',
       senderName: 'Jack',
       recipientId: localUser.id,
-      text: 'This is a broadcast message!',
+      text:
+        activeLang === 'ko_KR'
+          ? '전체 쪽지(브로드캐스트) 메시지입니다!'
+          : 'This is a broadcast message!',
       timestamp: Date.now() - 90000,
       protocolMode: draft.protocolMode,
       wireHeader: draft.protocolMode === 'Legacy v1.0' ? 'BRDCST' : 'BRDv30',
@@ -1137,7 +1269,10 @@ export const SettingsDialogModal: React.FC<{
       senderId: localUser.id,
       senderName: draft.userName || localUser.name,
       recipientId: 'jack',
-      text: 'Hi, this is an outgoing message (Y)',
+      text:
+        activeLang === 'ko_KR'
+          ? '반갑습니다, 내가 보낸 메시지 미리보기입니다 (Y)'
+          : 'Hi, this is an outgoing message (Y)',
       timestamp: Date.now() - 60000,
       protocolMode: draft.protocolMode,
       wireHeader: draft.protocolMode === 'Legacy v1.0' ? 'MESSAG' : 'MSGv30',
@@ -1147,24 +1282,99 @@ export const SettingsDialogModal: React.FC<{
   ];
 
   const handleSave = () => {
+    saveAppThemeToStorage(draft.appTheme);
     onSaveSettings(draft);
     onClose();
   };
 
   return (
     <WindowFrame
-      title="Preferences - LAN Messenger"
+      title={i18n.preferences.windowTitle}
       icon="/resources/images/tools.png"
       onClose={onClose}
       widthClass="max-w-2xl w-full"
+      appTheme={activeAppTheme}
     >
-      <div className="p-3 flex flex-col h-[470px]">
+      <div
+        className="p-3 flex flex-col h-[510px]"
+        style={{
+          backgroundColor: themeCfg.windowBg,
+          color: themeCfg.textPrimary,
+        }}
+      >
+        {/* Top Real-Time Quick Controls: Language Switcher + App Theme Dropdown ('클래식 윈도우', '다크 모드', '고대비') */}
+        <div
+          style={{
+            backgroundColor: themeCfg.subPanelBg,
+            borderColor: themeCfg.borderInner,
+            borderStyle: themeCfg.borderStyle,
+          }}
+          className="mb-2.5 px-3 py-1.5 border rounded-xs flex flex-wrap items-center justify-between gap-2 text-xs"
+        >
+          {/* App Theme Selector Dropdown */}
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="settings-app-theme-select"
+              className="font-bold whitespace-nowrap"
+              style={{ color: themeCfg.textPrimary }}
+            >
+              🎨 {i18n.preferences.theme.appThemeLabel}
+            </label>
+            <select
+              id="settings-app-theme-select"
+              aria-label="앱 테마 선택"
+              value={activeAppTheme}
+              onChange={(e) => handleAppThemeChange(e.target.value)}
+              style={{
+                backgroundColor: themeCfg.panelBg,
+                color: themeCfg.textPrimary,
+                borderColor: themeCfg.borderOuter,
+                borderStyle: themeCfg.borderStyle,
+              }}
+              className="border px-2 py-1 rounded-xs font-semibold text-xs cursor-pointer"
+            >
+              <option value="classic">클래식 윈도우</option>
+              <option value="dark">다크 모드</option>
+              <option value="high-contrast">고대비</option>
+            </select>
+          </div>
+
+          {/* Language Switcher */}
+          <div className="flex items-center gap-1.5" role="group" aria-label="Language Switcher">
+            <span className="font-bold whitespace-nowrap" style={{ color: themeCfg.textPrimary }}>
+              🌐 {i18n.preferences.quickToggleLabel}:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleLanguageChange('en_US')}
+              className={`px-2 py-1 rounded-xs font-semibold border text-xs cursor-pointer transition-colors ${
+                activeLang === 'en_US'
+                  ? 'bg-[#0054e3] text-white border-[#0046c7]'
+                  : 'bg-white text-slate-800 border-[#7f9db9] hover:bg-blue-50'
+              }`}
+            >
+              🇺🇸 English (en_US)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLanguageChange('ko_KR')}
+              className={`px-2 py-1 rounded-xs font-semibold border text-xs cursor-pointer transition-colors ${
+                activeLang === 'ko_KR'
+                  ? 'bg-[#0054e3] text-white border-[#0046c7]'
+                  : 'bg-white text-slate-800 border-[#7f9db9] hover:bg-blue-50'
+              }`}
+            >
+              🇰🇷 한국어 (ko_KR)
+            </button>
+          </div>
+        </div>
+
         <div className="flex-1 flex gap-3 min-h-0">
           {/* Left Category List (ui.lvCategories) */}
           <div className="w-40 bg-white border border-[#7f9db9] overflow-y-auto p-1 space-y-0.5 shrink-0">
             {categories.map((cat, idx) => (
               <button
-                key={cat.name}
+                key={cat.key}
                 type="button"
                 onClick={() => setCategoryIdx(idx)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-xs font-medium cursor-pointer text-left ${
@@ -1189,7 +1399,9 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 0 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded">
-                  <legend className="font-semibold px-1 text-slate-700">System</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.general.systemLegend}
+                  </legend>
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1197,7 +1409,7 @@ export const SettingsDialogModal: React.FC<{
                         checked={draft.autoStart}
                         onChange={(e) => setDraft({ ...draft, autoStart: e.target.checked })}
                       />
-                      <span>Start LAN Messenger when computer starts</span>
+                      <span>{i18n.preferences.general.autoStart}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1205,13 +1417,15 @@ export const SettingsDialogModal: React.FC<{
                         checked={draft.autoShow}
                         onChange={(e) => setDraft({ ...draft, autoShow: e.target.checked })}
                       />
-                      <span>Show main window when LAN Messenger starts</span>
+                      <span>{i18n.preferences.general.autoShow}</span>
                     </label>
                   </div>
                 </fieldset>
 
                 <fieldset className="border border-gray-300 p-2.5 rounded">
-                  <legend className="font-semibold px-1 text-slate-700">System Tray</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.general.sysTrayLegend}
+                  </legend>
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1219,7 +1433,7 @@ export const SettingsDialogModal: React.FC<{
                         checked={draft.showSysTray}
                         onChange={(e) => setDraft({ ...draft, showSysTray: e.target.checked })}
                       />
-                      <span>Show system tray icon</span>
+                      <span>{i18n.preferences.general.showSysTray}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1227,7 +1441,7 @@ export const SettingsDialogModal: React.FC<{
                         checked={draft.minimizeToTray}
                         onChange={(e) => setDraft({ ...draft, minimizeToTray: e.target.checked })}
                       />
-                      <span>Minimize main window to system tray</span>
+                      <span>{i18n.preferences.general.minimizeToTray}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1235,26 +1449,30 @@ export const SettingsDialogModal: React.FC<{
                         checked={draft.showSysTrayMsg}
                         onChange={(e) => setDraft({ ...draft, showSysTrayMsg: e.target.checked })}
                       />
-                      <span>Display balloon notifications in system tray</span>
+                      <span>{i18n.preferences.general.showSysTrayMsg}</span>
                     </label>
                   </div>
                 </fieldset>
 
-                <fieldset className="border border-gray-300 p-2.5 rounded">
-                  <legend className="font-semibold px-1 text-slate-700">Language</legend>
+                <fieldset className="border border-blue-400 bg-blue-50/40 p-2.5 rounded space-y-2">
+                  <legend className="font-bold px-1 text-blue-900">
+                    {i18n.preferences.general.languageLegend}
+                  </legend>
+                  <label className="block font-medium text-slate-800">
+                    {i18n.preferences.general.languageSelectLabel}
+                  </label>
                   <select
-                    value={draft.language}
-                    onChange={(e) => setDraft({ ...draft, language: e.target.value })}
-                    className="w-full border border-gray-400 px-2 py-1 bg-white"
+                    aria-label="Interface Language"
+                    value={activeLang}
+                    onChange={(e) => handleLanguageChange(normalizeLanguage(e.target.value))}
+                    className="w-full border border-[#7f9db9] px-2 py-1.5 bg-white font-semibold"
                   >
-                    <option value="en_US">English (United States)</option>
-                    <option value="ko_KR">Korean (한국어)</option>
-                    <option value="ja_JP">Japanese (日本語)</option>
-                    <option value="de_DE">German (Deutsch)</option>
-                    <option value="fr_FR">French (Français)</option>
-                    <option value="es_ES">Spanish (Español)</option>
-                    <option value="ru_RU">Russian (Русский)</option>
+                    <option value="en_US">English (United States) — en_US</option>
+                    <option value="ko_KR">한국어 (Korean) — ko_KR</option>
                   </select>
+                  <div className="text-[11px] text-gray-600">
+                    {i18n.preferences.general.languageHint}
+                  </div>
                 </fieldset>
               </div>
             )}
@@ -1263,9 +1481,13 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 1 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-2">
-                  <legend className="font-semibold px-1 text-slate-700">Personal Details</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.account.personalDetailsLegend}
+                  </legend>
                   <div>
-                    <label className="block font-medium mb-0.5">User Name (Display Name):</label>
+                    <label className="block font-medium mb-0.5">
+                      {i18n.preferences.account.userNameLabel}
+                    </label>
                     <input
                       type="text"
                       value={draft.userName}
@@ -1275,7 +1497,9 @@ export const SettingsDialogModal: React.FC<{
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block font-medium mb-0.5">First Name:</label>
+                      <label className="block font-medium mb-0.5">
+                        {i18n.preferences.account.firstNameLabel}
+                      </label>
                       <input
                         type="text"
                         value={draft.firstName}
@@ -1284,7 +1508,9 @@ export const SettingsDialogModal: React.FC<{
                       />
                     </div>
                     <div>
-                      <label className="block font-medium mb-0.5">Last Name:</label>
+                      <label className="block font-medium mb-0.5">
+                        {i18n.preferences.account.lastNameLabel}
+                      </label>
                       <input
                         type="text"
                         value={draft.lastName}
@@ -1294,7 +1520,9 @@ export const SettingsDialogModal: React.FC<{
                     </div>
                   </div>
                   <div>
-                    <label className="block font-medium mb-0.5">About:</label>
+                    <label className="block font-medium mb-0.5">
+                      {i18n.preferences.account.aboutLabel}
+                    </label>
                     <textarea
                       rows={3}
                       value={draft.about}
@@ -1310,14 +1538,16 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 2 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-1.5">
-                  <legend className="font-semibold px-1 text-slate-700">Message Window</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.messages.messageWindowLegend}
+                  </legend>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={draft.showEmoticons}
                       onChange={(e) => setDraft({ ...draft, showEmoticons: e.target.checked })}
                     />
-                    <span>Show emoticons (smileys) in messages</span>
+                    <span>{i18n.preferences.messages.showEmoticons}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1325,7 +1555,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.showMessageTime}
                       onChange={(e) => setDraft({ ...draft, showMessageTime: e.target.checked })}
                     />
-                    <span>Show timestamp on messages</span>
+                    <span>{i18n.preferences.messages.showMessageTime}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer pl-5">
                     <input
@@ -1334,7 +1564,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.showMessageDate}
                       onChange={(e) => setDraft({ ...draft, showMessageDate: e.target.checked })}
                     />
-                    <span>Show date with timestamp</span>
+                    <span>{i18n.preferences.messages.showMessageDate}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1342,7 +1572,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.allowLinks}
                       onChange={(e) => setDraft({ ...draft, allowLinks: e.target.checked })}
                     />
-                    <span>Enable hyperlinks in messages</span>
+                    <span>{i18n.preferences.messages.allowLinks}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1350,7 +1580,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.trimMessage}
                       onChange={(e) => setDraft({ ...draft, trimMessage: e.target.checked })}
                     />
-                    <span>Remove leading and trailing spaces from messages</span>
+                    <span>{i18n.preferences.messages.trimMessage}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1358,14 +1588,16 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.showSendButton}
                       onChange={(e) => setDraft({ ...draft, showSendButton: e.target.checked })}
                     />
-                    <span>Show Send button in chat window</span>
+                    <span>{i18n.preferences.messages.showSendButton}</span>
                   </label>
                 </fieldset>
 
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-2">
-                  <legend className="font-semibold px-1 text-slate-700">Font & Size</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.messages.fontSizeLegend}
+                  </legend>
                   <div className="flex items-center gap-2">
-                    <span>Message Text Size:</span>
+                    <span>{i18n.preferences.messages.messageTextSizeLabel}</span>
                     <select
                       value={draft.fontSize}
                       onChange={(e) =>
@@ -1376,9 +1608,9 @@ export const SettingsDialogModal: React.FC<{
                       }
                       className="border border-gray-400 px-2 py-1"
                     >
-                      <option value="Small">Small</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Large">Large</option>
+                      <option value="Small">{i18n.preferences.messages.sizeSmall}</option>
+                      <option value="Medium">{i18n.preferences.messages.sizeMedium}</option>
+                      <option value="Large">{i18n.preferences.messages.sizeLarge}</option>
                     </select>
                   </div>
                 </fieldset>
@@ -1389,14 +1621,16 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 3 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-2">
-                  <legend className="font-semibold px-1 text-slate-700">Message History</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.history.messageHistoryLegend}
+                  </legend>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={draft.saveHistory}
                       onChange={(e) => setDraft({ ...draft, saveHistory: e.target.checked })}
                     />
-                    <span>Save conversation history when chat window closes</span>
+                    <span>{i18n.preferences.history.saveHistory}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1404,7 +1638,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.saveFileHistory}
                       onChange={(e) => setDraft({ ...draft, saveFileHistory: e.target.checked })}
                     />
-                    <span>Save file transfer history</span>
+                    <span>{i18n.preferences.history.saveFileHistory}</span>
                   </label>
                   <div className="pt-2 flex gap-2">
                     <button
@@ -1412,14 +1646,14 @@ export const SettingsDialogModal: React.FC<{
                       onClick={onClearHistory}
                       className="px-3 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] cursor-pointer"
                     >
-                      Clear Message History
+                      {i18n.preferences.history.clearMessageHistoryBtn}
                     </button>
                     <button
                       type="button"
                       onClick={onClearTransfers}
                       className="px-3 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] cursor-pointer"
                     >
-                      Clear File History
+                      {i18n.preferences.history.clearFileHistoryBtn}
                     </button>
                   </div>
                 </fieldset>
@@ -1430,14 +1664,16 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 4 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-1.5">
-                  <legend className="font-semibold px-1 text-slate-700">Notifications & Sounds</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.alerts.notificationsLegend}
+                  </legend>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={draft.showAlerts}
                       onChange={(e) => setDraft({ ...draft, showAlerts: e.target.checked })}
                     />
-                    <span>Show status popup alerts</span>
+                    <span>{i18n.preferences.alerts.showAlerts}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1445,7 +1681,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.noBusyAlert}
                       onChange={(e) => setDraft({ ...draft, noBusyAlert: e.target.checked })}
                     />
-                    <span>Do not show alerts when I am Busy</span>
+                    <span>{i18n.preferences.alerts.noBusyAlert}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1453,7 +1689,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.enableSound}
                       onChange={(e) => setDraft({ ...draft, enableSound: e.target.checked })}
                     />
-                    <span>Play sound effects on events</span>
+                    <span>{i18n.preferences.alerts.enableSound}</span>
                   </label>
                 </fieldset>
               </div>
@@ -1464,10 +1700,12 @@ export const SettingsDialogModal: React.FC<{
               <div className="space-y-2.5">
                 <fieldset className="border border-blue-400 bg-blue-50/40 p-2.5 rounded space-y-1.5">
                   <legend className="font-bold px-1 text-blue-900">
-                    OpenSSL 3.0 ↔ 1.0 Protocol Compatibility
+                    {i18n.preferences.network.protocolCompatLegend}
                   </legend>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">Wire Header & RSA Key Encoding Mode:</span>
+                    <span className="font-medium">
+                      {i18n.preferences.network.wireHeaderModeLabel}
+                    </span>
                     <select
                       value={draft.protocolMode}
                       onChange={(e) => {
@@ -1492,17 +1730,17 @@ export const SettingsDialogModal: React.FC<{
 
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-2">
                   <legend className="font-semibold px-1 text-slate-700">
-                    Multicast & Ports
+                    {i18n.preferences.network.multicastPortsLegend}
                   </legend>
                   <div className="grid grid-cols-3 gap-2 items-center">
-                    <span>Multicast Group IP:</span>
+                    <span>{i18n.preferences.network.multicastGroupIpLabel}</span>
                     <input
                       type="text"
                       value={draft.multicastAddress}
                       onChange={(e) => setDraft({ ...draft, multicastAddress: e.target.value })}
                       className="col-span-2 border border-[#7f9db9] px-2 py-1 font-mono"
                     />
-                    <span>UDP Port:</span>
+                    <span>{i18n.preferences.network.udpPortLabel}</span>
                     <input
                       type="number"
                       value={draft.udpPort}
@@ -1511,7 +1749,7 @@ export const SettingsDialogModal: React.FC<{
                       }
                       className="col-span-2 border border-[#7f9db9] px-2 py-1 font-mono"
                     />
-                    <span>TCP Port:</span>
+                    <span>{i18n.preferences.network.tcpPortLabel}</span>
                     <input
                       type="number"
                       value={draft.tcpPort}
@@ -1523,7 +1761,9 @@ export const SettingsDialogModal: React.FC<{
                   </div>
 
                   <div className="pt-1">
-                    <div className="font-medium mb-1">Broadcast Address List:</div>
+                    <div className="font-medium mb-1">
+                      {i18n.preferences.network.broadcastListLabel}
+                    </div>
                     <div className="flex gap-1.5 mb-1.5">
                       <input
                         type="text"
@@ -1545,7 +1785,7 @@ export const SettingsDialogModal: React.FC<{
                         }}
                         className="px-2.5 py-0.5 bg-[#e1dfd2] border border-[#7f9db9] cursor-pointer"
                       >
-                        Add
+                        {i18n.preferences.network.addBtn}
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -1579,14 +1819,16 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 6 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-1.5">
-                  <legend className="font-semibold px-1 text-slate-700">File Reception</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.fileTransfer.fileReceptionLegend}
+                  </legend>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={draft.autoReceiveFile}
                       onChange={(e) => setDraft({ ...draft, autoReceiveFile: e.target.checked })}
                     />
-                    <span>Automatically accept incoming files</span>
+                    <span>{i18n.preferences.fileTransfer.autoReceiveFile}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1596,10 +1838,12 @@ export const SettingsDialogModal: React.FC<{
                         setDraft({ ...draft, autoShowTransferWindow: e.target.checked })
                       }
                     />
-                    <span>Show File Transfers window automatically when transfer starts</span>
+                    <span>{i18n.preferences.fileTransfer.autoShowTransferWindow}</span>
                   </label>
                   <div className="pt-2">
-                    <label className="block font-medium mb-0.5">Received Files Folder:</label>
+                    <label className="block font-medium mb-0.5">
+                      {i18n.preferences.fileTransfer.receivedFilesFolderLabel}
+                    </label>
                     <input
                       type="text"
                       value={draft.fileStoragePath}
@@ -1614,9 +1858,35 @@ export const SettingsDialogModal: React.FC<{
             {/* 7: Theme (with live preview!) */}
             {categoryIdx === 7 && (
               <div className="flex-1 flex flex-col space-y-2.5 min-h-0">
+                <fieldset className="border border-blue-400 bg-blue-50/40 p-2.5 rounded space-y-1.5">
+                  <legend className="font-bold px-1 text-blue-900">
+                    {i18n.preferences.theme.appThemeLegend}
+                  </legend>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="font-medium">
+                      {i18n.preferences.theme.appThemeLabel}
+                    </label>
+                    <select
+                      aria-label="테마 드롭다운"
+                      value={activeAppTheme}
+                      onChange={(e) => handleAppThemeChange(e.target.value)}
+                      className="border border-[#7f9db9] px-2.5 py-1 bg-white font-semibold cursor-pointer"
+                    >
+                      <option value="classic">클래식 윈도우</option>
+                      <option value="dark">다크 모드</option>
+                      <option value="high-contrast">고대비</option>
+                    </select>
+                  </div>
+                  <div className="text-[11px] text-gray-600">
+                    {i18n.preferences.theme.appThemeHint}
+                  </div>
+                </fieldset>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-medium mb-0.5">Chat Theme:</label>
+                    <label className="block font-medium mb-0.5">
+                      {i18n.preferences.theme.chatThemeLabel}
+                    </label>
                     <select
                       value={draft.theme}
                       onChange={(e) =>
@@ -1632,7 +1902,9 @@ export const SettingsDialogModal: React.FC<{
                     </select>
                   </div>
                   <div>
-                    <label className="block font-medium mb-0.5">Contact List View:</label>
+                    <label className="block font-medium mb-0.5">
+                      {i18n.preferences.theme.contactListViewLabel}
+                    </label>
                     <select
                       value={draft.userListView}
                       onChange={(e) =>
@@ -1643,15 +1915,15 @@ export const SettingsDialogModal: React.FC<{
                       }
                       className="w-full border border-[#7f9db9] px-2 py-1 bg-white"
                     >
-                      <option value="Detailed">Detailed View (36px with Avatars & Notes)</option>
-                      <option value="Compact">Compact View (20px)</option>
+                      <option value="Detailed">{i18n.preferences.theme.detailedViewOption}</option>
+                      <option value="Compact">{i18n.preferences.theme.compactViewOption}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="flex-1 flex flex-col border border-gray-400 rounded overflow-hidden min-h-[190px]">
                   <div className="px-2 py-1 bg-gray-100 border-b border-gray-300 text-[11px] font-semibold text-gray-600">
-                    Theme Preview ({draft.theme})
+                    {i18n.preferences.theme.themePreviewTitle} ({draft.theme})
                   </div>
                   <ThemedMessageLog
                     messages={samplePreviewMessages}
@@ -1673,14 +1945,16 @@ export const SettingsDialogModal: React.FC<{
             {categoryIdx === 8 && (
               <div className="space-y-3">
                 <fieldset className="border border-gray-300 p-2.5 rounded space-y-2">
-                  <legend className="font-semibold px-1 text-slate-700">Send Message Key</legend>
+                  <legend className="font-semibold px-1 text-slate-700">
+                    {i18n.preferences.hotkeys.sendMessageKeyLegend}
+                  </legend>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
                       checked={!draft.sendKeyModCtrlEnter}
                       onChange={() => setDraft({ ...draft, sendKeyModCtrlEnter: false })}
                     />
-                    <span>Press Enter to send message (Ctrl+Enter inserts new line)</span>
+                    <span>{i18n.preferences.hotkeys.enterSendsRadio}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1688,7 +1962,7 @@ export const SettingsDialogModal: React.FC<{
                       checked={draft.sendKeyModCtrlEnter}
                       onChange={() => setDraft({ ...draft, sendKeyModCtrlEnter: true })}
                     />
-                    <span>Press Ctrl+Enter to send message (Enter inserts new line)</span>
+                    <span>{i18n.preferences.hotkeys.ctrlEnterSendsRadio}</span>
                   </label>
                 </fieldset>
               </div>
@@ -1706,7 +1980,7 @@ export const SettingsDialogModal: React.FC<{
             }}
             className="px-3 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
           >
-            Reset Preferences
+            {i18n.preferences.buttons.resetPreferences}
           </button>
 
           <div className="flex items-center gap-2">
@@ -1715,14 +1989,14 @@ export const SettingsDialogModal: React.FC<{
               onClick={handleSave}
               className="px-5 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold text-xs cursor-pointer"
             >
-              OK
+              {i18n.preferences.buttons.ok}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs cursor-pointer"
             >
-              Cancel
+              {i18n.preferences.buttons.cancel}
             </button>
           </div>
         </div>
@@ -1733,13 +2007,15 @@ export const SettingsDialogModal: React.FC<{
 
 // 9. About Dialog (lmcAboutDialog)
 export const AboutDialogModal: React.FC<{
+  language?: string;
   onClose: () => void;
-}> = ({ onClose }) => {
+}> = ({ language = 'en_US', onClose }) => {
   const [tab, setTab] = useState<'about' | 'thanks' | 'license'>('about');
+  const i18n = getLabels(language);
 
   return (
     <WindowFrame
-      title="About LAN Messenger"
+      title={i18n.modals.about.title}
       icon="/resources/images/logo.png"
       onClose={onClose}
       widthClass="max-w-md w-full"
@@ -1763,7 +2039,7 @@ export const AboutDialogModal: React.FC<{
               tab === 'about' ? 'bg-white border-[#aca899]' : 'bg-[#e1dfd2] border-transparent'
             }`}
           >
-            About
+            {i18n.modals.about.tabAbout}
           </button>
           <button
             type="button"
@@ -1772,7 +2048,7 @@ export const AboutDialogModal: React.FC<{
               tab === 'thanks' ? 'bg-white border-[#aca899]' : 'bg-[#e1dfd2] border-transparent'
             }`}
           >
-            Thanks
+            {i18n.modals.about.tabThanks}
           </button>
           <button
             type="button"
@@ -1781,7 +2057,7 @@ export const AboutDialogModal: React.FC<{
               tab === 'license' ? 'bg-white border-[#aca899]' : 'bg-[#e1dfd2] border-transparent'
             }`}
           >
-            License
+            {i18n.modals.about.tabLicense}
           </button>
         </div>
 
@@ -1821,7 +2097,7 @@ export const AboutDialogModal: React.FC<{
             onClick={onClose}
             className="px-5 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold cursor-pointer"
           >
-            Close
+            {i18n.modals.about.close}
           </button>
         </div>
       </div>
@@ -1831,10 +2107,12 @@ export const AboutDialogModal: React.FC<{
 
 // 10. Update Window (lmcUpdateWindow -> GitHub Releases API tag_name check)
 export const UpdateWindowModal: React.FC<{
+  language?: string;
   onClose: () => void;
-}> = ({ onClose }) => {
+}> = ({ language = 'en_US', onClose }) => {
   const CURRENT_VERSION = '1.3.0';
   const GITHUB_RELEASES_API = 'https://api.github.com/repos/yjhone1/lan-messenger/releases/latest';
+  const i18n = getLabels(language);
 
   const [status, setStatus] = useState<'check' | 'latest' | 'new' | 'error'>('check');
   const [webVersion, setWebVersion] = useState<string>('');
@@ -1891,7 +2169,7 @@ export const UpdateWindowModal: React.FC<{
 
   return (
     <WindowFrame
-      title="LAN Messenger updates"
+      title={i18n.modals.update.title}
       icon="/resources/images/logo.png"
       onClose={onClose}
       widthClass="max-w-md w-full"
@@ -1899,11 +2177,10 @@ export const UpdateWindowModal: React.FC<{
       <div className="p-3.5 text-xs space-y-3">
         <div className="bg-white border border-[#aca899] p-3 min-h-[96px] flex flex-col justify-between">
           <div className="font-medium text-slate-900">
-            {status === 'check' && 'Launching an update request...'}
-            {status === 'error' && 'An error occured while checking for updates.'}
-            {status === 'new' &&
-              `The new version ${webVersion} is available on LAN Messenger web site.`}
-            {status === 'latest' && 'You have the latest version of LAN Messenger.'}
+            {status === 'check' && i18n.modals.update.checking}
+            {status === 'error' && i18n.modals.update.error}
+            {status === 'new' && `${i18n.modals.update.newAvailable} (${webVersion})`}
+            {status === 'latest' && i18n.modals.update.upToDate}
           </div>
 
           <div className="mt-3 pt-2 border-t border-gray-200 text-[11px] text-gray-600 font-mono space-y-0.5">
@@ -1927,14 +2204,14 @@ export const UpdateWindowModal: React.FC<{
             onClick={checkForUpdates}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] disabled:opacity-50 border border-[#7f9db9] cursor-pointer"
           >
-            Recheck
+            {i18n.modals.update.recheck}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-5 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold cursor-pointer"
           >
-            Close
+            {i18n.modals.update.close}
           </button>
         </div>
       </div>

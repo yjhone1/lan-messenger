@@ -115,6 +115,10 @@ public:
   static QString getLogonName(void);
   static QString getHostName(void);
   static QString getOSName(void);
+  static QString getCpuInfo(void);
+  static QString getMemoryInfo(void);
+  static QString getGpuInfo(void);
+  static QString getMacAddress(void);
   static QString escapeDelimiter(QString* lpszData);
   static QString unescapeDelimiter(QString* lpszData);
   static int compareVersions(const QString& version1, const QString& version2);

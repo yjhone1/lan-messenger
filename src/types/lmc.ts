@@ -112,9 +112,14 @@ export interface User {
   note: string;
   group: string;
   address: string;
+  macAddress: string;
   hostName: string;
   logonName: string;
   osName: string;
+  osVersionDetail: string;
+  cpuInfo: string;
+  memoryInfo: string;
+  gpuInfo: string;
   version: string;
   opensslVersion: 'OpenSSL 1.0.2u (Legacy PKCS#1)' | 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)';
   rsaBits: 1024 | 2048;
@@ -133,6 +138,89 @@ export interface Group {
 }
 
 export type ThemeName = 'Classic' | 'Bubble' | 'Dark Bubble' | 'Digg' | 'Ping Pong';
+
+export type AppUiTheme = 'classic' | 'dark' | 'high-contrast';
+
+export interface AppUiThemeConfig {
+  id: AppUiTheme;
+  koName: string;
+  enName: string;
+  desktopBg: string;
+  windowBg: string;
+  panelBg: string;
+  subPanelBg: string;
+  textPrimary: string;
+  textSecondary: string;
+  borderOuter: string;
+  borderInner: string;
+  borderStyle: 'solid' | 'double';
+  titlebarBg: string;
+  titlebarText: string;
+  buttonBg: string;
+  buttonText: string;
+  buttonBorder: string;
+}
+
+export const APP_UI_THEMES: Record<AppUiTheme, AppUiThemeConfig> = {
+  classic: {
+    id: 'classic',
+    koName: '클래식 윈도우',
+    enName: 'Classic Windows',
+    desktopBg: '#3a6ea5',
+    windowBg: '#ece9d8',
+    panelBg: '#ffffff',
+    subPanelBg: '#f5f4ee',
+    textPrimary: '#0f172a',
+    textSecondary: '#475569',
+    borderOuter: '#0054e3',
+    borderInner: '#aca899',
+    borderStyle: 'solid',
+    titlebarBg: 'linear-gradient(90deg, #0054e3 0%, #2673f2 50%, #0046c7 100%)',
+    titlebarText: '#ffffff',
+    buttonBg: '#e1dfd2',
+    buttonText: '#0f172a',
+    buttonBorder: '#7f9db9',
+  },
+  dark: {
+    id: 'dark',
+    koName: '다크 모드',
+    enName: 'Dark Mode',
+    desktopBg: '#0b1120',
+    windowBg: '#1e293b',
+    panelBg: '#0f172a',
+    subPanelBg: '#1e293b',
+    textPrimary: '#f1f5f9',
+    textSecondary: '#94a3b8',
+    borderOuter: '#38bdf8',
+    borderInner: '#475569',
+    borderStyle: 'solid',
+    titlebarBg: 'linear-gradient(90deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%)',
+    titlebarText: '#38bdf8',
+    buttonBg: '#334155',
+    buttonText: '#f8fafc',
+    buttonBorder: '#64748b',
+  },
+  'high-contrast': {
+    id: 'high-contrast',
+    koName: '고대비',
+    enName: 'High Contrast',
+    desktopBg: '#000000',
+    windowBg: '#000000',
+    panelBg: '#000000',
+    subPanelBg: '#0a0a0a',
+    textPrimary: '#ffff00',
+    textSecondary: '#00ffff',
+    borderOuter: '#ffff00',
+    borderInner: '#ffffff',
+    borderStyle: 'double',
+    titlebarBg: 'linear-gradient(90deg, #000000 0%, #1a1a00 100%)',
+    titlebarText: '#ffff00',
+    buttonBg: '#000000',
+    buttonText: '#ffff00',
+    buttonBorder: '#ffff00',
+  },
+};
+
 
 export type ChatStateType = 'active' | 'composing' | 'paused' | 'inactive';
 
@@ -260,6 +348,7 @@ export interface LmcSettings {
   autoShowTransferWindow: boolean;
   fileStoragePath: string;
   // Appearance / Theme
+  appTheme: AppUiTheme;
   theme: ThemeName;
   userListView: 'Detailed' | 'Compact';
   showStatusTooltip: boolean;

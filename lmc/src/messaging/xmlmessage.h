@@ -84,6 +84,10 @@
 #define XN_FOLDERID "folderid"
 #define XN_RELPATH "relpath"
 #define XN_FILECOUNT "filecount"
+#define XN_MACADDRESS "macaddress"
+#define XN_CPU "cpu"
+#define XN_MEMORY "memory"
+#define XN_GPU "gpu"
 
 class XmlMessage : public QDomDocument {
 public:

@@ -153,6 +153,15 @@ void lmcCore::loadSettings(void) {
 }
 
 void lmcCore::settingsChanged(void) {
+  pSettings->sync();
+  QString appLang = pSettings->value(IDS_LANGUAGE, IDS_LANGUAGE_VAL).toString();
+  if(appLang.compare(lang) != 0) {
+    lang = appLang;
+    Application::setLanguage(lang);
+    Application::setLayoutDirection(tr("LAYOUT_DIRECTION") == RTL_LAYOUT ? Qt::RightToLeft : Qt::LeftToRight);
+    lmcStrings::retranslate();
+  }
+
   pMessaging->settingsChanged();
   pMainWindow->settingsChanged();
   if(pPublicChatWindow)
@@ -183,13 +192,6 @@ void lmcCore::settingsChanged(void) {
     pTimer->setInterval(refreshTime);
   bool autoStart = pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_VAL).toBool();
   lmcSettings::setAutoStart(autoStart);
-  QString appLang = pSettings->value(IDS_LANGUAGE, IDS_LANGUAGE_VAL).toString();
-  if(appLang.compare(lang) != 0) {
-    lang = appLang;
-    Application::setLanguage(lang);
-    Application::setLayoutDirection(tr("LAYOUT_DIRECTION") == RTL_LAYOUT ? Qt::RightToLeft : Qt::LeftToRight);
-    lmcStrings::retranslate();
-  }
 }
 
 void lmcCore::stop(void) {

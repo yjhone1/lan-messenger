@@ -188,6 +188,23 @@
         </widget>
        </item>
        <item row="1" column="0">
+        <widget class="QLabel" name="lblMacAddressDesc">
+         <property name="text">
+          <string>MAC Address:</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="lblMacAddress">
+         <property name="text">
+          <string>&lt;MAC Address&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
         <widget class="QLabel" name="lblLogonNameDesc">
          <property name="text">
           <string>Logon Name:</string>
@@ -197,14 +214,14 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
+       <item row="2" column="1">
         <widget class="QLabel" name="lblLogonName">
          <property name="text">
           <string>&lt;Logon Name&gt;</string>
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
+       <item row="3" column="0">
         <widget class="QLabel" name="lblComputerNameDesc">
          <property name="text">
           <string>Computer Name:</string>
@@ -214,14 +231,14 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
+       <item row="3" column="1">
         <widget class="QLabel" name="lblComputerName">
          <property name="text">
           <string>&lt;Computer Name&gt;</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
+       <item row="4" column="0">
         <widget class="QLabel" name="lblOSNameDesc">
          <property name="text">
           <string>Operating System:</string>
@@ -231,14 +248,74 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
+       <item row="4" column="1">
         <widget class="QLabel" name="lblOSName">
          <property name="text">
           <string>&lt;Operating System&gt;</string>
          </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
-       <item row="4" column="0">
+       <item row="5" column="0">
+        <widget class="QLabel" name="lblCpuDesc">
+         <property name="text">
+          <string>CPU Info:</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QLabel" name="lblCpu">
+         <property name="text">
+          <string>&lt;CPU Info&gt;</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="lblMemoryDesc">
+         <property name="text">
+          <string>Memory (RAM):</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLabel" name="lblMemory">
+         <property name="text">
+          <string>&lt;Memory Info&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="lblGpuDesc">
+         <property name="text">
+          <string>Graphics Card (GPU):</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QLabel" name="lblGpu">
+         <property name="text">
+          <string>&lt;Graphics Card&gt;</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
         <widget class="QLabel" name="lblVersionDesc">
          <property name="text">
           <string>Messenger Version:</string>
@@ -248,7 +325,7 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
+       <item row="8" column="1">
         <widget class="QLabel" name="lblVersion">
          <property name="text">
           <string>&lt;Messenger Version&gt;</string>

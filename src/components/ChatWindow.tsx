@@ -11,6 +11,7 @@ import {
   User,
   UserCap,
 } from '../types/lmc';
+import { getAppThemeConfig, getLabels } from '../utils/i18n';
 
 interface ChatWindowProps {
   localUser: User;
@@ -148,6 +149,7 @@ export const ThemedMessageLog: React.FC<{
 }) => {
   const endRef = useRef<HTMLDivElement>(null);
   const activeTheme = themeOverride || settings.theme;
+  const i18n = getLabels(settings.language);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -196,9 +198,12 @@ export const ThemedMessageLog: React.FC<{
     >
       {groupedMessages.length === 0 && (
         <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs italic">
-          <span>Encrypted P2P session active ({peer.opensslVersion})</span>
+          <span>
+            {i18n.chatWindow.encryptedSessionActive} ({peer.opensslVersion})
+          </span>
           <span className="text-[11px] mt-0.5">
-            Active Wire Framing: {settings.protocolMode} ({settings.protocolMode === 'Legacy v1.0' ? 'PKCS#1 / MESSAG' : 'SPKI / MSGv30'})
+            {i18n.chatWindow.activeWireFraming}: {settings.protocolMode} (
+            {settings.protocolMode === 'Legacy v1.0' ? 'PKCS#1 / MESSAG' : 'SPKI / MSGv30'})
           </span>
         </div>
       )}
@@ -244,7 +249,9 @@ export const ThemedMessageLog: React.FC<{
                 <div className="flex items-center justify-between border-b border-[#b6d9af] pb-1 mb-1 text-xs font-semibold">
                   <div className="flex items-center gap-1.5">
                     <img src="/resources/images/broadcastmsg.png" alt="" className="w-4 h-4" />
-                    <span>Broadcast from {msg.senderName}:</span>
+                    <span>
+                      {i18n.chatWindow.broadcastFrom} {msg.senderName}:
+                    </span>
                   </div>
                   <span className="text-[11px] text-gray-600 font-normal">
                     {formatTimestamp(msg.timestamp)}
@@ -278,8 +285,16 @@ export const ThemedMessageLog: React.FC<{
                   <div className="flex-1 min-w-0">
                     <div className="text-gray-600">
                       {msg.fileMode === 'send'
-                        ? `Sending ${msg.isFolder ? 'folder' : 'file'} to ${peer.name}:`
-                        : `${msg.senderName} is offering a ${msg.isFolder ? 'folder' : 'file'}:`}
+                        ? `${
+                            msg.isFolder
+                              ? i18n.chatWindow.sendingFolderTo
+                              : i18n.chatWindow.sendingFileTo
+                          } ${peer.name}:`
+                        : `${msg.senderName} ${
+                            msg.isFolder
+                              ? i18n.chatWindow.offeringFolder
+                              : i18n.chatWindow.offeringFile
+                          }`}
                     </div>
                     <div className="text-blue-700 font-semibold truncate mt-0.5">
                       {msg.fileName} ({kb} KB)
@@ -294,7 +309,7 @@ export const ThemedMessageLog: React.FC<{
                             }
                             className="text-green-700 font-semibold underline hover:text-green-900 cursor-pointer"
                           >
-                            Accept
+                            {i18n.chatWindow.accept}
                           </button>
                           <button
                             type="button"
@@ -303,7 +318,7 @@ export const ThemedMessageLog: React.FC<{
                             }
                             className="text-red-700 font-semibold underline hover:text-red-900 cursor-pointer"
                           >
-                            Decline
+                            {i18n.chatWindow.decline}
                           </button>
                         </>
                       )}
@@ -315,22 +330,28 @@ export const ThemedMessageLog: React.FC<{
                           }
                           className="text-red-700 font-semibold underline hover:text-red-900 cursor-pointer"
                         >
-                          Cancel
+                          {i18n.chatWindow.cancel}
                         </button>
                       )}
                       {msg.fileOp === 'accept' && (
-                        <span className="text-blue-700 italic">Transferring file over TCP stream...</span>
+                        <span className="text-blue-700 italic">
+                          {i18n.chatWindow.transferringStream}
+                        </span>
                       )}
                       {msg.fileOp === 'complete' && (
                         <span className="text-green-700 font-medium">
-                          ✓ File transfer completed successfully.
+                          {i18n.chatWindow.transferCompleted}
                         </span>
                       )}
                       {msg.fileOp === 'decline' && (
-                        <span className="text-red-700 italic">File transfer declined.</span>
+                        <span className="text-red-700 italic">
+                          {i18n.chatWindow.transferDeclined}
+                        </span>
                       )}
                       {msg.fileOp === 'cancel' && (
-                        <span className="text-gray-600 italic">File transfer cancelled.</span>
+                        <span className="text-gray-600 italic">
+                          {i18n.chatWindow.transferCancelled}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -549,7 +570,7 @@ export const ThemedMessageLog: React.FC<{
                   className="font-bold"
                   style={{ color: isOutgoing ? '#004080' : '#800000' }}
                 >
-                  {msg.senderName} says:
+                  {msg.senderName} {i18n.chatWindow.says}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span
@@ -593,12 +614,16 @@ export const ThemedMessageLog: React.FC<{
       {peerChatState === 'composing' && (
         <div className="mt-2 text-[11px] text-gray-500 italic flex items-center gap-1.5">
           <img src="/resources/images/paint.png" alt="" className="w-3.5 h-3.5" />
-          <span>{peer.name} is typing a message...</span>
+          <span>
+            {peer.name} {i18n.chatWindow.isTyping}
+          </span>
         </div>
       )}
       {peerChatState === 'paused' && (
         <div className="mt-2 text-[11px] text-gray-400 italic">
-          <span>{peer.name} has entered text.</span>
+          <span>
+            {peer.name} {i18n.chatWindow.hasEnteredText}
+          </span>
         </div>
       )}
 
@@ -638,6 +663,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const peerStatusMeta =
     STATUS_LIST.find((s) => s.code === peer.status) || STATUS_LIST[0];
+  const i18n = getLabels(settings.language);
+  const localizedPeerStatusLabel = i18n.status[peer.status] || peerStatusMeta.label;
 
   const legacyCompatMode = settings.protocolMode === 'Legacy v1.0';
 
@@ -696,14 +723,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   // Determine status bar warning message (matching lmcChatWindow::showStatus in chatwindow.cpp)
   let statusWarning: { text: string; color: string } | null = null;
   if (!connected) {
-    statusWarning = { text: 'You are no longer connected.', color: 'rgb(96,96,96)' };
+    statusWarning = { text: i18n.chatWindow.notConnectedWarning, color: 'rgb(96,96,96)' };
   } else if (peerStatusMeta.type === StatusTypeEnum.StatusTypeOffline) {
-    statusWarning = { text: `${peer.name} is offline.`, color: 'rgb(96,96,96)' };
+    statusWarning = {
+      text: `${peer.name} ${i18n.chatWindow.isOfflineWarning}`,
+      color: 'rgb(96,96,96)',
+    };
   } else if (peerStatusMeta.type === StatusTypeEnum.StatusTypeAway) {
-    statusWarning = { text: `${peer.name} is away.`, color: 'rgb(255,115,0)' };
+    statusWarning = {
+      text: `${peer.name} ${i18n.chatWindow.isAwayWarning}`,
+      color: 'rgb(255,115,0)',
+    };
   } else if (peerStatusMeta.type === StatusTypeEnum.StatusTypeBusy) {
     statusWarning = {
-      text: `${peer.name} is busy. You may be interrupting.`,
+      text: `${peer.name} ${i18n.chatWindow.isBusyWarning}`,
       color: 'rgb(192,0,0)',
     };
   }
@@ -712,25 +745,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isStrictMismatchWithLegacyPeer =
     !legacyCompatMode && peer.opensslVersion.includes('OpenSSL 1.0');
 
+  const themeCfg = getAppThemeConfig(settings.appTheme);
+
   return (
     <div
       onClick={onFocus}
-      className={`flex flex-col bg-[#ece9d8] border-2 rounded-t-md shadow-xl overflow-hidden transition-shadow ${
-        isActive ? 'border-[#0054e3] ring-1 ring-[#0054e3]/30' : 'border-[#7a96df]'
-      }`}
+      style={{
+        backgroundColor: themeCfg.windowBg,
+        borderColor: themeCfg.borderOuter,
+        borderStyle: themeCfg.borderStyle,
+        borderWidth: themeCfg.id === 'high-contrast' ? '3px' : '2px',
+        color: themeCfg.textPrimary,
+      }}
+      className="lmc-window-surface flex flex-col rounded-t-md shadow-xl overflow-hidden transition-colors duration-150"
     >
-      {/* Classic Window Titlebar */}
+      {/* Window Titlebar */}
       <div
-        className={`h-7 px-2 flex items-center justify-between text-white select-none ${
-          isActive
-            ? 'bg-gradient-to-r from-[#0054e3] via-[#2673f2] to-[#0046c7]'
-            : 'bg-gradient-to-r from-[#7a96df] to-[#5f7bc2]'
-        }`}
+        style={{
+          background: themeCfg.titlebarBg,
+          color: themeCfg.titlebarText,
+          borderBottom:
+            themeCfg.id === 'high-contrast'
+              ? '2px solid #ffff00'
+              : themeCfg.id === 'dark'
+              ? '1px solid #38bdf8'
+              : 'none',
+        }}
+        className="h-7 px-2 flex items-center justify-between select-none"
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <img src={peerStatusMeta.bubbleIcon} alt="" className="w-4 h-4 shrink-0" />
           <span className="font-bold text-xs truncate">
-            {peer.name} - Conversation
+            {peer.name} - {i18n.chatWindow.conversationSuffix}
           </span>
           <span className="text-[10px] opacity-85 truncate hidden sm:inline">
             ({peer.address} • {peer.opensslVersion.split(' ')[0]} {peer.opensslVersion.split(' ')[1]})
@@ -744,10 +790,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 e.stopPropagation();
                 onSimulateIncomingMessage(peer.id);
               }}
-              title="Simulate incoming encrypted reply from this peer"
+              title={i18n.chatWindow.simulateReplyTooltip}
               className="px-1.5 py-0.5 text-[10px] bg-white/20 hover:bg-white/30 rounded text-white cursor-pointer"
             >
-              Simulate Reply
+              {i18n.chatWindow.simulateReply}
             </button>
           )}
           <button
@@ -756,7 +802,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               e.stopPropagation();
               onClose();
             }}
-            title="Close (Esc)"
+            title={i18n.chatWindow.closeTooltip}
             className="w-5 h-5 flex items-center justify-center rounded-xs bg-[#e04343] hover:bg-[#f05454] border border-white/40 text-white font-bold text-xs cursor-pointer"
           >
             ✕
@@ -765,7 +811,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Top Participant Header Bar */}
-      <div className="px-2.5 py-1.5 bg-[#f5f4ee] border-b border-[#d4d0c8] flex items-center justify-between">
+      <div
+        style={{
+          backgroundColor: themeCfg.subPanelBg,
+          borderColor: themeCfg.borderInner,
+        }}
+        className="px-2.5 py-1.5 border-b flex items-center justify-between"
+      >
         <div className="flex items-center gap-2 min-w-0">
           <img
             src={peer.avatarPath}
@@ -775,7 +827,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-xs text-slate-900 truncate">{peer.name}</span>
-              <span className="text-[11px] text-gray-600">({peerStatusMeta.label})</span>
+              <span className="text-[11px] text-gray-600">({localizedPeerStatusLabel})</span>
             </div>
             <div className="text-[11px] text-gray-500 truncate">
               {peer.note || `${peer.osName} • RSA-${peer.rsaBits} • AES-256-CBC`}
@@ -818,15 +870,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* OpenSSL 1.0 Strict v3.0 Warning Banner if user toggles Strict v3.0 on a Legacy 1.0 peer */}
       {isStrictMismatchWithLegacyPeer && (
         <div className="px-2.5 py-1 bg-amber-50 border-t border-amber-300 text-[11px] text-amber-900 flex items-center justify-between">
-          <span>
-            ⚠️ Peer runs <b>OpenSSL 1.0.2u</b> (`PEM_read_bio_RSAPublicKey`). `Strict v3.0` sends SPKI first; dual-PEM fallback keeps peer alive, or switch to `Legacy v1.0`.
-          </span>
+          <span>{i18n.chatWindow.strictMismatchWarning}</span>
           <button
             type="button"
             onClick={() => onToggleProtocolMode('Legacy v1.0')}
             className="ml-2 px-1.5 py-0.5 bg-amber-200 hover:bg-amber-300 rounded text-[10px] font-semibold cursor-pointer shrink-0"
           >
-            Use Legacy v1.0
+            {i18n.chatWindow.useLegacyBtn}
           </button>
         </div>
       )}
@@ -846,7 +896,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowColorPicker(false);
               setShowSmileyPicker(false);
             }}
-            title="Change message font"
+            title={i18n.chatWindow.changeFontTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img src="/resources/images/font.png" alt="Font" className="w-4 h-4" />
@@ -860,7 +910,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowFontPicker(false);
               setShowSmileyPicker(false);
             }}
-            title="Change message text color"
+            title={i18n.chatWindow.changeColorTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img src="/resources/images/fontcolor.png" alt="Color" className="w-4 h-4" />
@@ -876,7 +926,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowFontPicker(false);
               setShowColorPicker(false);
             }}
-            title="Insert Smiley"
+            title={i18n.chatWindow.insertSmileyTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img src="/resources/images/smiley.png" alt="Smiley" className="w-4 h-4" />
@@ -895,7 +945,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={(peer.caps & UserCap.UC_File) !== UserCap.UC_File}
             onClick={() => fileInputRef.current?.click()}
-            title={`Send a file to ${peer.name}`}
+            title={`${i18n.chatWindow.sendFileTooltip} ${peer.name}`}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] disabled:opacity-40 cursor-pointer"
           >
             <img src="/resources/images/file.png" alt="Send File" className="w-4 h-4" />
@@ -906,7 +956,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={(peer.caps & UserCap.UC_Folder) !== UserCap.UC_Folder}
             onClick={() => onSendFile(peer.id, true, 'project_release_v1.2.10/', 2457600)}
-            title={`Send a folder to ${peer.name}`}
+            title={`${i18n.chatWindow.sendFolderTooltip} ${peer.name}`}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] disabled:opacity-40 cursor-pointer"
           >
             <img src="/resources/images/sendfolder.png" alt="Send Folder" className="w-4 h-4" />
@@ -916,7 +966,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={() => onStartRemoteDesktop(peer.id)}
-            title={`Remote Desktop (${peer.name})`}
+            title={`${i18n.chatWindow.remoteDesktopTooltip} (${peer.name})`}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img
@@ -933,7 +983,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={messages.length === 0}
             onClick={handleSaveConversation}
-            title="Save this conversation (Ctrl+S)"
+            title={i18n.chatWindow.saveConversationTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] disabled:opacity-40 cursor-pointer"
           >
             <img src="/resources/images/save.png" alt="Save" className="w-4 h-4" />
@@ -967,7 +1017,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={onOpenTransfers}
-            title="View File Transfers (Ctrl+J)"
+            title={i18n.chatWindow.viewTransfersTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img src="/resources/images/transfer.png" alt="Transfers" className="w-4 h-4" />
@@ -977,7 +1027,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={onOpenHistory}
-            title="View History (Ctrl+H)"
+            title={i18n.chatWindow.viewHistoryTooltip}
             className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer"
           >
             <img src="/resources/images/history.png" alt="History" className="w-4 h-4" />
@@ -988,7 +1038,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {showSmileyPicker && (
           <div className="absolute bottom-full left-2 mb-1 z-30 bg-white border border-gray-400 shadow-lg rounded p-2 w-72">
             <div className="text-[11px] font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
-              <span>Insert Emoticon ({SMILEY_LIST.length})</span>
+              <span>
+                {i18n.chatWindow.insertEmoticonTitle} ({SMILEY_LIST.length})
+              </span>
               <button
                 type="button"
                 onClick={() => setShowSmileyPicker(false)}
@@ -1019,7 +1071,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Popup: Font Picker */}
         {showFontPicker && (
           <div className="absolute bottom-full left-1 mb-1 z-30 bg-white border border-gray-400 shadow-lg rounded p-2 w-56">
-            <div className="text-[11px] font-semibold text-gray-700 mb-1">Select Font</div>
+            <div className="text-[11px] font-semibold text-gray-700 mb-1">
+              {i18n.chatWindow.selectFontTitle}
+            </div>
             <div className="space-y-1">
               {FONT_FAMILIES.map((f) => (
                 <button
@@ -1044,7 +1098,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Popup: Color Picker */}
         {showColorPicker && (
           <div className="absolute bottom-full left-7 mb-1 z-30 bg-white border border-gray-400 shadow-lg rounded p-2 w-48">
-            <div className="text-[11px] font-semibold text-gray-700 mb-1.5">Select Text Color</div>
+            <div className="text-[11px] font-semibold text-gray-700 mb-1.5">
+              {i18n.chatWindow.selectColorTitle}
+            </div>
             <div className="grid grid-cols-4 gap-1.5">
               {PRESET_COLORS.map((c) => (
                 <button
@@ -1073,8 +1129,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={
             settings.sendKeyModCtrlEnter
-              ? 'Type a message... (Press Ctrl+Enter to send)'
-              : 'Type a message... (Press Enter to send)'
+              ? i18n.chatWindow.placeholderCtrlEnter
+              : i18n.chatWindow.placeholderEnter
           }
           style={{
             fontFamily,
@@ -1089,7 +1145,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={handleSend}
             className="px-4 bg-[#e1dfd2] hover:bg-[#d5d2c3] active:bg-[#c8c4b4] border border-[#7f9db9] rounded-xs font-semibold text-xs text-slate-800 cursor-pointer"
           >
-            Send
+            {i18n.chatWindow.sendBtn}
           </button>
         )}
       </div>

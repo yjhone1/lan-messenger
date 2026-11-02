@@ -200,13 +200,19 @@ endif()
 add_custom_command(
     OUTPUT ${LMC_RUNTIME_DIR}/lmc.rcc
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}/lang
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lang
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/lang ${LMC_RUNTIME_DIR}/lang
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/lang ${CMAKE_CURRENT_BINARY_DIR}/lang
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/sounds ${CMAKE_CURRENT_BINARY_DIR}/sounds
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/sounds ${LMC_RUNTIME_DIR}/sounds
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/themes ${CMAKE_CURRENT_BINARY_DIR}/themes
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/themes ${LMC_RUNTIME_DIR}/themes
     COMMAND Qt6::rcc -binary ${CMAKE_CURRENT_SOURCE_DIR}/src/resource.qrc
             -o ${LMC_RUNTIME_DIR}/lmc.rcc
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/resource.qrc
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src
-    COMMENT "Building external resource bundle lmc.rcc and staging sounds/"
+    COMMENT "Building external resource bundle lmc.rcc and staging lang/, sounds/, themes/"
     VERBATIM
 )
 
@@ -227,7 +233,9 @@ if(TARGET Qt6::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
         add_custom_command(
             OUTPUT ${qm_out}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}/lang
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lang
             COMMAND Qt6::lrelease ${ts} -qm ${qm_out}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${qm_out} ${CMAKE_CURRENT_BINARY_DIR}/lang/${qm_name}.qm
             DEPENDS ${ts}
             COMMENT "lrelease ${qm_name}.ts"
             VERBATIM

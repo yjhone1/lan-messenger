@@ -79,11 +79,21 @@ void lmcSettingsDialog::init(void) {
   //	Loop through available languages and add them to a map. This ensures that
   //	the languages are sorted alphabetically. After that add the sorted items
   //	to the combo box.
-  for(int index = 0; index < Application::availableLanguages().count(); index++) {
-    QString langCode = Application::availableLanguages().value(index);
+  QStringList availLangs = Application::availableLanguages();
+  if(!availLangs.contains("en_US"))
+    availLangs.append("en_US");
+  if(!availLangs.contains("ko_KR"))
+    availLangs.append("ko_KR");
+
+  for(int index = 0; index < availLangs.count(); index++) {
+    QString langCode = availLangs.value(index);
     QLocale locale(langCode);
     QString language = QLocale::languageToString(locale.language());
-    languages.insert(language, langCode);
+    QString nativeName = locale.nativeLanguageName().trimmed();
+    QString displayLabel = nativeName.isEmpty()
+      ? QString("%1 (%2)").arg(language, langCode)
+      : QString("%1 - %2 (%3)").arg(language, nativeName, langCode);
+    languages.insert(displayLabel, langCode);
   }
   for(int index = 0; index < languages.count(); index++)
     ui.cboLanguage->addItem(languages.keys().value(index), languages.values().value(index));
@@ -705,4 +715,9 @@ void lmcSettingsDialog::saveSettings(void) {
   pSettings->setValue(IDS_SENDKEYMOD, ui.rdbCmdEnter->isChecked(), IDS_SENDKEYMOD_VAL);
 
   pSettings->sync();
+
+  if(!langCode.isEmpty()) {
+    Application::setLanguage(langCode);
+    lmcStrings::retranslate();
+  }
 }

@@ -40,7 +40,7 @@ SetCompressor /SOLID lzma
   !ifndef InstallerVersion
     !define InstallerVersion "1.3.0.0"
   !endif
-  !define ProductUrl "http://lanmessenger.github.io"
+  !define ProductUrl "https://github.com/yjhone1/lan-messenger"
   !define CompanyRegKey "SOFTWARE\${CompanyName}"
   !define AppRegKey "${CompanyRegKey}\${ProductName}"
   !define UninstKey "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${ProductName}"

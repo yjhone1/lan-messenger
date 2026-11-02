@@ -2,10 +2,10 @@ name: Windows Release Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master ]
   workflow_dispatch:
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
           cmake -B build -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
             -DLMC_VERSION="${{ env.LMC_VERSION }}" `
-            -DLMC_ENABLE_TESTS=ON
+            -DLMC_BUILD_TESTS=ON
 
       - name: Build LAN Messenger & Crypto Unit Tests
         shell: pwsh
@@ -55,64 +55,102 @@ jobs:
         run: |
           ctest --test-dir build --output-on-failure -C Release
 
-      - name: Stage Windows Portable Release Package
+      - name: Stage Windows Release & Build NSIS Installer
         shell: pwsh
         run: |
-          $distDir = "dist-win64"
-          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+          $stageDir = "lmc/release"
+          if (Test-Path $stageDir) { Remove-Item -Recurse -Force $stageDir }
+          New-Item -ItemType Directory -Force -Path "$stageDir/lang/system", "$stageDir/sounds", "$stageDir/themes" | Out-Null
 
-          # Copy built binaries
-          $exePaths = Get-ChildItem -Path build -Recurse -Filter "lmc.exe"
-          foreach ($exe in $exePaths) {
-            Copy-Item $exe.FullName -Destination $distDir -Force
+          # 1. Copy built executable and external resource bundle
+          $exeFile = Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1
+          if (-not $exeFile) {
+            Write-Error "lmc.exe not found in build directory!"
+            exit 1
           }
-          $dllPaths = Get-ChildItem -Path build -Recurse -Filter "lmcapp*.dll"
-          foreach ($dll in $dllPaths) {
-            Copy-Item $dll.FullName -Destination $distDir -Force
+          Copy-Item $exeFile.FullName -Destination "$stageDir/lmc.exe" -Force
+
+          $rccFile = Get-ChildItem -Path build -Recurse -Filter "lmc.rcc" | Select-Object -First 1
+          if ($rccFile) {
+            Copy-Item $rccFile.FullName -Destination "$stageDir/lmc.rcc" -Force
           }
 
-          # Run windeployqt to bundle Qt 6 runtime DLLs and plugins
-          if (Test-Path "$distDir/lmc.exe") {
-            windeployqt --release --no-translations "$distDir/lmc.exe"
+          # 2. Copy language (.qm), sounds, and themes assets
+          if (Test-Path "lmc/src/resources/lang") {
+            Copy-Item "lmc/src/resources/lang/*.qm" -Destination "$stageDir/lang/" -Force
+          }
+          Get-ChildItem -Path build -Recurse -Filter "*.qm" -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName -Destination "$stageDir/lang/" -Force
+          }
+          if (Test-Path "lmc/src/resources/sounds") {
+            Copy-Item "lmc/src/resources/sounds/*" -Destination "$stageDir/sounds/" -Recurse -Force
+          }
+          if (Test-Path "lmc/src/resources/themes") {
+            Copy-Item "lmc/src/resources/themes/*" -Destination "$stageDir/themes/" -Recurse -Force
           }
 
-          # Bundle OpenSSL 3.x runtime DLLs (libcrypto-3-x64.dll, libssl-3-x64.dll)
-          $opensslDirs = @(
-            "C:\Program Files\OpenSSL\bin",
-            "C:\Program Files\OpenSSL-Win64\bin",
-            "$env:OPENSSL_ROOT_DIR\bin"
-          )
-          foreach ($dir in $opensslDirs) {
+          # 3. Deploy Qt 6 runtime DLLs and system translations
+          windeployqt --release --no-opengl-sw --no-system-d3d-compiler "$stageDir/lmc.exe"
+          Remove-Item "$stageDir/vc_redist*.exe" -Force -ErrorAction SilentlyContinue
+          if (Test-Path "$stageDir/translations") {
+            Copy-Item "$stageDir/translations/qtbase_*.qm" -Destination "$stageDir/lang/system/" -Force -ErrorAction SilentlyContinue
+          }
+
+          # 4. Bundle OpenSSL 3.x and MSVC runtime DLLs
+          foreach ($dir in @("C:\Program Files\OpenSSL\bin", "C:\Program Files\OpenSSL-Win64\bin", "$env:OPENSSL_ROOT_DIR\bin")) {
             if (Test-Path $dir) {
-              Get-ChildItem -Path $dir -Filter "libcrypto*.dll" | Copy-Item -Destination $distDir -Force
-              Get-ChildItem -Path $dir -Filter "libssl*.dll" | Copy-Item -Destination $distDir -Force
+              Get-ChildItem -Path $dir -Include "libcrypto*.dll", "libssl*.dll" -Recurse | Copy-Item -Destination $stageDir -Force
+            }
+          }
+          foreach ($crt in @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll")) {
+            $crtPath = "$env:SystemRoot\System32\$crt"
+            if (Test-Path $crtPath) {
+              Copy-Item $crtPath -Destination $stageDir -Force
             }
           }
 
-          # Copy application resources and license
-          Copy-Item "LICENSE" -Destination $distDir -Force -ErrorAction SilentlyContinue
-          Copy-Item "README.md" -Destination $distDir -Force -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE", "README.md" -Destination $stageDir -Force -ErrorAction SilentlyContinue
 
-          Compress-Archive -Path "$distDir/*" -DestinationPath "lan-messenger-windows-x64.zip" -Force
+          # 5. Build NSIS Windows Setup Installer (lmc-1.3.0-win64.exe)
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            choco install nsis -y
+          }
+          Push-Location "lmc/setup/win32"
+          & $makensis /DExeFolder=release /DProductVersion=${{ env.LMC_VERSION }} /DInstallerVersion=${{ env.LMC_VERSION }}.0 setup.nsi
+          if ($LASTEXITCODE -ne 0) {
+            Pop-Location
+            Write-Error "NSIS installer build failed!"
+            exit 1
+          }
+          Pop-Location
+          Move-Item "lmc/setup/win32/lmc-${{ env.LMC_VERSION }}-win64.exe" "lmc-${{ env.LMC_VERSION }}-win64.exe" -Force
 
-      - name: Upload Windows Build Artifact
+          # 6. Create Portable ZIP archive
+          Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x64.zip" -Force
+
+      - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: lan-messenger-windows-x64-v${{ env.LMC_VERSION }}
-          path: lan-messenger-windows-x64.zip
+          path: |
+            lmc-${{ env.LMC_VERSION }}-win64.exe
+            lan-messenger-windows-x64.zip
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.3.0"
-          name: "LAN Messenger v1.3.0 Windows Release"
+          tag_name: "v${{ env.LMC_VERSION }}"
+          name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release"
           body: |
-            Automated Windows x64 build of LAN Messenger v1.3.0 (Qt ${{ env.QT_VERSION }} / MSVC 2022).
-            - Base version: v1.2.39
-            - Added OpenSSL 3.0 <-> 1.0 Legacy Compatibility Architecture (PKCS#1 PEM, RSA-1024/2048 OAEP SHA-1/SHA-256 fallback)
-            - Added Remote Desktop Control (`lmc/src/remote/`)
-            - Added GitHub Releases (`releases/latest`) version check
-          files: lan-messenger-windows-x64.zip
+            Automated Windows x64 Release of LAN Messenger v${{ env.LMC_VERSION }} (Qt ${{ env.QT_VERSION }} / MSVC 2022).
+            - **Windows Installer (Setup Wizard)**: `lmc-${{ env.LMC_VERSION }}-win64.exe`
+            - **Windows Portable ZIP**: `lan-messenger-windows-x64.zip`
+            - Includes all 20 languages (`ko_KR` Korean included) in both embedded resources and `lang/` folder
+            - OpenSSL 3.0 <-> 1.0 Legacy Compatibility Architecture & Remote Desktop Control
+          files: |
+            lmc-${{ env.LMC_VERSION }}-win64.exe
+            lan-messenger-windows-x64.zip
           draft: false
           prerelease: false
