@@ -8,14 +8,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
     file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _lmc_ver_line LIMIT_COUNT 1)
     string(STRIP "${_lmc_ver_line}" _lmc_ver_default)
 else()
-    set(_lmc_ver_default "1.3.0")
+    set(_lmc_ver_default "1.3.01")
 endif()
 
 project(lan-messenger VERSION ${_lmc_ver_default} LANGUAGES CXX)
 
-# Synchronize LMC_VERSION with PROJECT_VERSION (FORCE overwrites stale CMakeCache.txt e.g. 1.2.39).
-if(NOT DEFINED LMC_VERSION OR LMC_VERSION STREQUAL "" OR LMC_VERSION VERSION_LESS "${PROJECT_VERSION}")
-    set(LMC_VERSION "${PROJECT_VERSION}" CACHE STRING "Application display version" FORCE)
+# Synchronize LMC_VERSION with _lmc_ver_default (preserves exact strings like 1.3.01 and overwrites stale CMakeCache.txt).
+if(NOT DEFINED LMC_VERSION OR LMC_VERSION STREQUAL "" OR LMC_VERSION VERSION_LESS "${_lmc_ver_default}")
+    set(LMC_VERSION "${_lmc_ver_default}" CACHE STRING "Application display version" FORCE)
 else()
     set(LMC_VERSION "${LMC_VERSION}" CACHE STRING "Application display version" FORCE)
 endif()
