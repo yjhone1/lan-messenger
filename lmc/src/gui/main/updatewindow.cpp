@@ -217,7 +217,8 @@ void lmcUpdateWindow::startDownload(void) {
   ui->btnRecheck->setEnabled(false);
   setUIText();
 
-  QNetworkRequest request(QUrl(downloadUrl));
+  QUrl reqUrl(downloadUrl);
+  QNetworkRequest request(reqUrl);
   request.setRawHeader("User-Agent", "LAN-Messenger/" IDA_VERSION);
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                        QNetworkRequest::NoLessSafeRedirectPolicy);

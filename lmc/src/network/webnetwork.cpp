@@ -98,7 +98,7 @@ void lmcWebNetwork::replyFinished(QNetworkReply* reply) {
         QString exeUrl;
         QString zipUrl;
         if(jsonObj.contains("assets") && jsonObj.value("assets").isArray()) {
-          QJsonArray assets = jsonObj.value("assets").toArray();
+          const QJsonArray assets = jsonObj.value("assets").toArray();
           for(const QJsonValue& val : assets) {
             if(!val.isObject())
               continue;
