@@ -143,6 +143,14 @@ QString Helper::getOSName(void) {
 #endif
 }
 
+QString Helper::getAppVersion(void) {
+  QString buildVer = QStringLiteral(IDA_VERSION).trimmed();
+  QString codeVer = QStringLiteral(LMC_APP_VERSION).trimmed();
+  if(buildVer.isEmpty() || compareVersions(buildVer, codeVer) < 0)
+    return codeVer;
+  return buildVer;
+}
+
 QString Helper::getCpuInfo(void) {
   int threads = QThread::idealThreadCount();
 #if defined Q_OS_WIN

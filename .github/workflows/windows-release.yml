@@ -23,6 +23,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Synchronize Version (VERSION / CMakeLists.txt / Git Tag)
+        shell: pwsh
+        run: |
+          $ver = "${{ env.LMC_VERSION }}"
+          if (Test-Path "VERSION") {
+            $fileVer = (Get-Content "VERSION" -TotalCount 1).Trim()
+            if ($fileVer) { $ver = $fileVer }
+          } elseif (Test-Path "CMakeLists.txt") {
+            $cmakeContent = Get-Content "CMakeLists.txt" -Raw
+            if ($cmakeContent -match 'project\s*\(\s*lan-messenger\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)') {
+              $ver = $Matches[1]
+            }
+          }
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+)') {
+            $ver = $Matches[1]
+          }
+          Write-Host "Synchronized LMC_VERSION = $ver"
+          "LMC_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup MSVC Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -42,7 +61,7 @@ jobs:
         run: |
           cmake -B build -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
-            -DLMC_VERSION="${{ env.LMC_VERSION }}" `
+            -DLMC_VERSION="$env:LMC_VERSION" `
             -DLMC_BUILD_TESTS=ON
 
       - name: Build LAN Messenger & Crypto Unit Tests

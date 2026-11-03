@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  APP_VERSION,
   AVATAR_LIST,
   ChatMessage,
   ChatStateType,
@@ -14,6 +15,7 @@ import {
   StatusCode,
   User,
   UserCap,
+  VERSION_CONFIG,
   WireFrameLog,
 } from './types/lmc';
 import {
@@ -126,7 +128,7 @@ const INITIAL_PEERS: User[] = [
     cpuInfo: 'Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz (4 Cores / 4 Threads)',
     memoryInfo: '8.00 GB DDR3 (사용 가능: 5.42 GB / 총 8,192 MB)',
     gpuInfo: 'NVIDIA GeForce GT 730 (VRAM 2,048 MB, DirectX 11)',
-    version: '1.2.35',
+    version: VERSION_CONFIG.version,
     opensslVersion: 'OpenSSL 1.0.2u (Legacy PKCS#1)',
     rsaBits: 1024,
     caps: UserCap.UC_File | UserCap.UC_GroupMessage | UserCap.UC_Folder,
@@ -153,7 +155,7 @@ const INITIAL_PEERS: User[] = [
     cpuInfo: 'Intel(R) Xeon(R) E3-1245 v5 @ 3.50GHz (4 Cores / 8 Threads)',
     memoryInfo: '16.00 GB ECC DDR4 (사용 가능: 11.80 GB / 총 16,384 MB)',
     gpuInfo: 'Intel(R) HD Graphics P530 (Integrated, 1,024 MB)',
-    version: '1.2.35',
+    version: VERSION_CONFIG.version,
     opensslVersion: 'OpenSSL 1.0.2u (Legacy PKCS#1)',
     rsaBits: 1024,
     caps: UserCap.UC_File | UserCap.UC_GroupMessage | UserCap.UC_Folder,
@@ -180,7 +182,7 @@ const INITIAL_PEERS: User[] = [
     cpuInfo: 'AMD Ryzen 7 7800X3D 8-Core Processor @ 4.20GHz (8 Cores / 16 Threads)',
     memoryInfo: '32.00 GB DDR5-6000 (사용 가능: 24.15 GB / 총 32,768 MB)',
     gpuInfo: 'NVIDIA GeForce RTX 4070 SUPER (VRAM 12,288 MB GDDR6X)',
-    version: '1.3.0',
+    version: VERSION_CONFIG.version,
     opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
     rsaBits: 2048,
     caps: UserCap.UC_File | UserCap.UC_GroupMessage | UserCap.UC_Folder,
@@ -207,7 +209,7 @@ const INITIAL_PEERS: User[] = [
     cpuInfo: 'Apple M3 Pro (12-Core CPU: 6 Performance + 6 Efficiency)',
     memoryInfo: '36.00 GB Unified LPDDR5 (사용 가능: 22.40 GB / 총 36,864 MB)',
     gpuInfo: 'Apple M3 Pro 18-Core GPU (Metal 3, Unified VRAM)',
-    version: '1.3.0',
+    version: VERSION_CONFIG.version,
     opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
     rsaBits: 2048,
     caps: UserCap.UC_File | UserCap.UC_GroupMessage | UserCap.UC_Folder,
@@ -249,7 +251,7 @@ export function App() {
       cpuInfo: 'Intel(R) Core(TM) i7-13700K @ 3.40GHz (16 Cores / 24 Threads)',
       memoryInfo: '32.00 GB DDR5-5600 (사용 가능: 21.60 GB / 총 32,768 MB)',
       gpuInfo: 'NVIDIA GeForce RTX 4060 Ti (VRAM 8,192 MB GDDR6)',
-      version: '1.3.0',
+      version: VERSION_CONFIG.version,
       opensslVersion: 'OpenSSL 3.0.13 (EVP_PKEY / OSSL_DECODER)',
       rsaBits: 2048,
       caps: UserCap.UC_File | UserCap.UC_GroupMessage | UserCap.UC_Folder,
@@ -1043,7 +1045,9 @@ export function App() {
       <div className="h-8 px-3 bg-slate-900 text-white border-b border-slate-700 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2.5">
           <img src="/resources/images/logo.png" alt="LMC" className="w-4 h-4" />
-          <span className="font-bold tracking-tight">LAN Messenger v1.3.0</span>
+          <span className="font-bold tracking-tight" data-testid="topbar-version">
+            LAN Messenger {VERSION_CONFIG.version}
+          </span>
           <span className="hidden md:inline-block text-slate-400">|</span>
           <span className="hidden md:inline-block text-[11px] text-slate-300">
             {i18n.topBar.udpMulticast}{' '}
@@ -1150,7 +1154,9 @@ export function App() {
           >
             <div className="flex items-center gap-1.5">
               <img src="/resources/images/logo.png" alt="" className="w-4 h-4" />
-              <span className="font-bold text-xs">{i18n.mainWindow.title}</span>
+              <span className="font-bold text-xs" data-testid="mainwindow-title-version">
+                {i18n.mainWindow.title} {VERSION_CONFIG.version}
+              </span>
             </div>
             <div className="flex items-center gap-1">
               <button

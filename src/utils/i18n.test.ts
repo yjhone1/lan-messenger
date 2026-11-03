@@ -13,6 +13,7 @@ import {
   EN_US_LABELS,
   KO_KR_LABELS,
 } from './i18n';
+import { VERSION_CONFIG, APP_VERSION } from '../types/lmc';
 
 test('normalizeLanguage maps ko/ko_KR variants to ko_KR and defaults to en_US', () => {
   assert.equal(normalizeLanguage('en_US'), 'en_US');
@@ -122,4 +123,13 @@ test('userInfo modal labels include Windows/OS version detail, CPU, Memory, GPU,
   assert.equal(ko.gpu, '그래픽카드 (GPU) 정보:');
   assert.equal(ko.macAddress, 'MAC 주소 (맥주소):');
 });
+
+test('VERSION_CONFIG defines v1.3.0 consistently for main window UI and UserInfoWindowModal', () => {
+  assert.equal(VERSION_CONFIG.version, 'v1.3.0');
+  assert.equal(VERSION_CONFIG.displayVersion, 'v1.3.0');
+  assert.equal(VERSION_CONFIG.rawVersion, '1.3.0');
+  assert.equal(VERSION_CONFIG.fullTitle, 'LAN Messenger v1.3.0');
+  assert.equal(APP_VERSION, VERSION_CONFIG.version);
+});
+
 

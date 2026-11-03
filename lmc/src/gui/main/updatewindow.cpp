@@ -85,7 +85,7 @@ void lmcUpdateWindow::receiveMessage(MessageType type, QString* lpszUserId, XmlM
 #elif defined(Q_OS_MAC)
     webVersion = pMessage->data(XN_MACVERSION);
 #endif
-    if(Helper::compareVersions(webVersion, QString(IDA_VERSION)) > 0)
+    if(Helper::compareVersions(webVersion, Helper::getAppVersion()) > 0)
       status = US_New; // newer version available online
     else
       status = US_Latest;

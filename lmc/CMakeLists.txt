@@ -1,9 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Allow opening either root /CMakeLists.txt or /lmc/CMakeLists.txt directly in Qt Creator
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" _lmc_sub_ver LIMIT_COUNT 1)
+    string(STRIP "${_lmc_sub_ver}" _lmc_sub_ver)
+else()
+    set(_lmc_sub_ver "1.3.0")
+endif()
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    project(lan-messenger VERSION 1.3.0 LANGUAGES CXX)
-    set(LMC_VERSION "1.3.0" CACHE STRING "Application display version")
+    project(lan-messenger VERSION ${_lmc_sub_ver} LANGUAGES CXX)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -17,6 +23,10 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     if(NOT TARGET lmcapp AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../lmcapp/CMakeLists.txt")
         add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../lmcapp" "${CMAKE_CURRENT_BINARY_DIR}/lmcapp")
     endif()
+endif()
+
+if(NOT DEFINED LMC_VERSION OR LMC_VERSION STREQUAL "" OR LMC_VERSION VERSION_LESS "${_lmc_sub_ver}")
+    set(LMC_VERSION "${_lmc_sub_ver}" CACHE STRING "Application display version" FORCE)
 endif()
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Network Xml)

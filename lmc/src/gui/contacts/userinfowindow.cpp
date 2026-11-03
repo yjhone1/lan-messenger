@@ -110,5 +110,8 @@ void lmcUserInfoWindow::setUIText(void) {
   ui.lblMemory->setText(mem.isEmpty() ? "N/A" : mem);
   QString gpu = userInfo.data(XN_GPU);
   ui.lblGpu->setText(gpu.isEmpty() ? "N/A" : gpu);
-  ui.lblVersion->setText(userInfo.data(XN_VERSION));
+  QString ver = userInfo.data(XN_VERSION).trimmed();
+  if(ver.isEmpty() || Helper::compareVersions(ver, Helper::getAppVersion()) < 0)
+    ver = Helper::getAppVersion();
+  ui.lblVersion->setText(ver);
 }

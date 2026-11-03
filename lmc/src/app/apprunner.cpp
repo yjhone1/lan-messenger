@@ -93,6 +93,7 @@ int lmcRunApplication(int argc, char* argv[],
     QResource::registerResource(extRcc);
 
   QApplication::setApplicationName(IDA_PRODUCT);
+  QApplication::setApplicationVersion(Helper::getAppVersion());
   QApplication::setOrganizationName(IDA_COMPANY);
   QApplication::setOrganizationDomain(IDA_DOMAIN);
   QApplication::setWindowIcon(QIcon(IDR_APPICON));

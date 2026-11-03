@@ -4,10 +4,21 @@ if(POLICY CMP0177)
     cmake_policy(SET CMP0177 NEW)
 endif()
 
-project(lan-messenger VERSION 1.3.0 LANGUAGES CXX)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _lmc_ver_line LIMIT_COUNT 1)
+    string(STRIP "${_lmc_ver_line}" _lmc_ver_default)
+else()
+    set(_lmc_ver_default "1.3.0")
+endif()
 
-# Display version: 1.3.0 (based on v1.2.39 + OpenSSL 3.0/1.0 Compat + Remote Desktop).
-set(LMC_VERSION "1.3.0" CACHE STRING "Application display version")
+project(lan-messenger VERSION ${_lmc_ver_default} LANGUAGES CXX)
+
+# Synchronize LMC_VERSION with PROJECT_VERSION (FORCE overwrites stale CMakeCache.txt e.g. 1.2.39).
+if(NOT DEFINED LMC_VERSION OR LMC_VERSION STREQUAL "" OR LMC_VERSION VERSION_LESS "${PROJECT_VERSION}")
+    set(LMC_VERSION "${PROJECT_VERSION}" CACHE STRING "Application display version" FORCE)
+else()
+    set(LMC_VERSION "${LMC_VERSION}" CACHE STRING "Application display version" FORCE)
+endif()
 message(STATUS "LMC version: ${LMC_VERSION}")
 
 set(CMAKE_CXX_STANDARD 17)

@@ -34,9 +34,10 @@
 #define IDA_PRODUCT "lmc"
 #define IDA_COMPANY "lmc"
 #endif
-//	Injected by CMake (-DLMC_VERSION); defaults to 1.3.0.
+//	Canonical release version synchronized across CMake, NSIS, and C++ runtime.
+#define LMC_APP_VERSION "1.3.0"
 #ifndef IDA_VERSION
-#define IDA_VERSION "1.3.0"
+#define IDA_VERSION LMC_APP_VERSION
 #endif
 #define IDA_DESCRIPTION "LAN Messenger is a free peer-to-peer messaging application for intra-network communication " \
                         "and does not require a server.\n"                                                            \

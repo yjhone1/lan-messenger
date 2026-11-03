@@ -72,7 +72,7 @@ void lmcMessaging::init(XmlMessage* pInitParams) {
   int nAvatar = pSettings->value(IDS_AVATAR, IDS_AVATAR_VAL).toInt();
   QString userNote = pSettings->value(IDS_NOTE, IDS_NOTE_VAL).toString();
   uint userCaps = UC_File | UC_GroupMessage | UC_Folder;
-  localUser = new User(userId, IDA_VERSION, pNetwork->ipAddress, userName, userStatus,
+  localUser = new User(userId, Helper::getAppVersion(), pNetwork->ipAddress, userName, userStatus,
                        QString(), nAvatar, userNote, StdLocation::avatarFile(),
                        QString::number(userCaps));
 
@@ -236,7 +236,7 @@ void lmcMessaging::saveGroups(void) {
   // make sure the correct version is set in the preferences file
   // so the group settings will not be wrongly migrated next time
   // application starts
-  pSettings->setValue(IDS_VERSION, IDA_VERSION);
+  pSettings->setValue(IDS_VERSION, Helper::getAppVersion());
 }
 
 int lmcMessaging::userCount(void) {
@@ -319,6 +319,7 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
   if(macAddress.isEmpty())
     macAddress = Helper::getMacAddress();
 
+  localUser->version = Helper::getAppVersion();
   pMessage->addData(XN_USERID, localUser->id);
   pMessage->addData(XN_NAME, localUser->name);
   pMessage->addData(XN_ADDRESS, localUser->address);

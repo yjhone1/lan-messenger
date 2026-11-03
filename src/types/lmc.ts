@@ -1,3 +1,15 @@
+export const VERSION_CONFIG = {
+  version: 'v1.3.0',
+  rawVersion: '1.3.0',
+  displayVersion: 'v1.3.0',
+  current: 'v1.3.0',
+  appName: 'LAN Messenger',
+  fullTitle: 'LAN Messenger v1.3.0',
+  legacyBaseVersion: '1.2.39',
+} as const;
+
+export const APP_VERSION = VERSION_CONFIG.version;
+
 export type ProtocolHeaderMode = 'Legacy v1.0' | 'Strict v3.0';
 
 export enum DatagramType {

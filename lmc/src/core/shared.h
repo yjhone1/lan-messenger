@@ -115,6 +115,7 @@ public:
   static QString getLogonName(void);
   static QString getHostName(void);
   static QString getOSName(void);
+  static QString getAppVersion(void);
   static QString getCpuInfo(void);
   static QString getMemoryInfo(void);
   static QString getGpuInfo(void);

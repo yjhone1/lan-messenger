@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  APP_VERSION,
   AppUiTheme,
   ChatMessage,
   FileTransferItem,
@@ -10,6 +11,7 @@ import {
   STATUS_LIST,
   ThemeName,
   User,
+  VERSION_CONFIG,
   WireFrameLog,
 } from '../types/lmc';
 import {
@@ -675,6 +677,11 @@ export const UserInfoWindowModal: React.FC<{
 
                 <span className="font-semibold text-gray-600">{i18n.modals.userInfo.ipAddress}</span>
                 <span className="col-span-2 font-mono">{user.address} ({user.hostName})</span>
+
+                <span className="font-semibold text-gray-600">{i18n.modals.userInfo.version}</span>
+                <span className="col-span-2 font-semibold text-blue-900" data-testid="userinfo-version">
+                  {VERSION_CONFIG.version}
+                </span>
               </div>
             </div>
           </div>
@@ -710,7 +717,9 @@ export const UserInfoWindowModal: React.FC<{
               <span className="col-span-2">{user.gpuInfo}</span>
 
               <span className="font-semibold text-gray-600">{i18n.modals.userInfo.version}</span>
-              <span className="col-span-2">{user.version}</span>
+              <span className="col-span-2 font-semibold text-blue-900" data-testid="userinfo-system-version">
+                {VERSION_CONFIG.version}
+              </span>
 
               <span className="font-semibold text-gray-600">{i18n.modals.userInfo.cryptoStack}</span>
               <span className="col-span-2 font-semibold text-blue-800">{user.opensslVersion}</span>
@@ -2024,9 +2033,11 @@ export const AboutDialogModal: React.FC<{
         <div className="flex items-center gap-3 mb-3">
           <img src="/resources/images/logo.png" alt="LAN Messenger" className="w-12 h-12" />
           <div>
-            <div className="font-bold text-sm text-slate-900">LAN Messenger v1.3.0</div>
+            <div className="font-bold text-sm text-slate-900">
+              LAN Messenger {VERSION_CONFIG.version}
+            </div>
             <div className="text-gray-600">
-              Based on v1.2.39 • OpenSSL 3.0 ↔ 1.0 Compat & Remote Desktop
+              Based on v{VERSION_CONFIG.legacyBaseVersion} • OpenSSL 3.0 ↔ 1.0 Compat & Remote Desktop
             </div>
           </div>
         </div>
@@ -2110,7 +2121,7 @@ export const UpdateWindowModal: React.FC<{
   language?: string;
   onClose: () => void;
 }> = ({ language = 'en_US', onClose }) => {
-  const CURRENT_VERSION = '1.3.0';
+  const CURRENT_VERSION = VERSION_CONFIG.rawVersion;
   const GITHUB_RELEASES_API = 'https://api.github.com/repos/yjhone1/lan-messenger/releases/latest';
   const i18n = getLabels(language);
 
