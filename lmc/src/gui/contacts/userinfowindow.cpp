@@ -111,7 +111,5 @@ void lmcUserInfoWindow::setUIText(void) {
   QString gpu = userInfo.data(XN_GPU);
   ui.lblGpu->setText(gpu.isEmpty() ? "N/A" : gpu);
   QString ver = userInfo.data(XN_VERSION).trimmed();
-  if(ver.isEmpty() || Helper::compareVersions(ver, Helper::getAppVersion()) < 0)
-    ver = Helper::getAppVersion();
-  ui.lblVersion->setText(ver);
+  ui.lblVersion->setText(ver.isEmpty() ? "N/A" : ver);
 }

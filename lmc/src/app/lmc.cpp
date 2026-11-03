@@ -474,6 +474,8 @@ void lmcCore::showUpdate(QRect* pRect) {
     pUpdateWindow = new lmcUpdateWindow(pRect);
     connect(pUpdateWindow, &lmcUpdateWindow::messageSent, this, &lmcCore::sendMessage);
     pUpdateWindow->init();
+  } else {
+    pUpdateWindow->init();
   }
 
   //	if window is minimized it, restore it to previous state

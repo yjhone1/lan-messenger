@@ -148,6 +148,8 @@ void lmcWebNetwork::sendMessage(const QUrl& url) {
   QNetworkRequest request(url);
   request.setRawHeader("User-Agent", "LAN-Messenger/" IDA_VERSION);
   request.setRawHeader("Accept", "application/vnd.github+json");
+  request.setRawHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
 
   QNetworkReply* reply = manager->get(request);
   connect(reply, &QNetworkReply::errorOccurred, this, &lmcWebNetwork::slotError);

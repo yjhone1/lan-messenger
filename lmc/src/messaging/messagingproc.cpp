@@ -352,6 +352,16 @@ void lmcMessaging::processMessage(MessageHeader* pHeader, XmlMessage* pMessage) 
     } else if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Result]) {
       msgId = pMessage->data(XN_MESSAGEID);
       removePendingMsg(msgId.toLongLong());
+      User* pUser = getUser(&pHeader->userId);
+      if(pUser) {
+        QString queryVer = pMessage->data(XN_VERSION).trimmed();
+        if(queryVer.isEmpty() && !pUser->version.isEmpty()) {
+          pMessage->removeData(XN_VERSION);
+          pMessage->addData(XN_VERSION, pUser->version);
+        } else if(!queryVer.isEmpty()) {
+          pUser->version = queryVer;
+        }
+      }
       //  Add the path to the user's avatar image stored locally
       data = "avt_" + pHeader->userId + ".png";
       data = QDir(StdLocation::cacheDir()).absoluteFilePath(data);

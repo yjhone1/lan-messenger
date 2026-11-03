@@ -146,7 +146,7 @@ QString Helper::getOSName(void) {
 QString Helper::getAppVersion(void) {
   QString buildVer = QStringLiteral(IDA_VERSION).trimmed();
   QString codeVer = QStringLiteral(LMC_APP_VERSION).trimmed();
-  if(buildVer.isEmpty() || compareVersions(buildVer, codeVer) < 0)
+  if(buildVer.isEmpty())
     return codeVer;
   return buildVer;
 }
@@ -297,13 +297,42 @@ int Helper::compareVersions(const QString& version1, const QString& version2) {
   if(cleanV1.isEmpty() || cleanV2.isEmpty())
     return 0;
 
-  QStringList v1 = cleanV1.split(".", Qt::SkipEmptyParts);
-  QStringList v2 = cleanV2.split(".", Qt::SkipEmptyParts);
+  auto expandParts = [](const QString& ver) -> QList<int> {
+    QList<int> result;
+    const QStringList rawParts = ver.split(".", Qt::SkipEmptyParts);
+    for(const QString& part : rawParts) {
+      if(part.length() > 1 && part.startsWith('0')) {
+        for(int i = 0; i < part.length() - 1; ++i) {
+          if(part[i] == '0')
+            result.append(0);
+          else {
+            result.append(part.mid(i).toInt());
+            break;
+          }
+        }
+        if(part.endsWith('0') && part.toInt() == 0)
+          result.append(0);
+        else {
+          int nonZeroIdx = 0;
+          while(nonZeroIdx < part.length() && part[nonZeroIdx] == '0')
+            ++nonZeroIdx;
+          if(nonZeroIdx < part.length())
+            result.append(part.mid(nonZeroIdx).toInt());
+        }
+      } else {
+        result.append(part.toInt());
+      }
+    }
+    return result;
+  };
+
+  QList<int> v1 = expandParts(cleanV1);
+  QList<int> v2 = expandParts(cleanV2);
 
   int maxLen = qMax(v1.count(), v2.count());
   for(int index = 0; index < maxLen; index++) {
-    int part1 = (index < v1.count()) ? v1[index].toInt() : 0;
-    int part2 = (index < v2.count()) ? v2[index].toInt() : 0;
+    int part1 = (index < v1.count()) ? v1[index] : 0;
+    int part2 = (index < v2.count()) ? v2[index] : 0;
     int comp = part1 - part2;
     if(comp != 0)
       return comp;

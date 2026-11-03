@@ -680,7 +680,7 @@ export const UserInfoWindowModal: React.FC<{
 
                 <span className="font-semibold text-gray-600">{i18n.modals.userInfo.version}</span>
                 <span className="col-span-2 font-semibold text-blue-900" data-testid="userinfo-version">
-                  {VERSION_CONFIG.version}
+                  {user.version || 'N/A'}
                 </span>
               </div>
             </div>
@@ -718,7 +718,7 @@ export const UserInfoWindowModal: React.FC<{
 
               <span className="font-semibold text-gray-600">{i18n.modals.userInfo.version}</span>
               <span className="col-span-2 font-semibold text-blue-900" data-testid="userinfo-system-version">
-                {VERSION_CONFIG.version}
+                {user.version || 'N/A'}
               </span>
 
               <span className="font-semibold text-gray-600">{i18n.modals.userInfo.cryptoStack}</span>
@@ -2131,10 +2131,27 @@ export const UpdateWindowModal: React.FC<{
   const [directDownloadUrl, setDirectDownloadUrl] = useState<string>('');
 
   const compareVersions = (v1Str: string, v2Str: string): number => {
-    const clean1 = v1Str.trim().replace(/^v/i, '');
-    const clean2 = v2Str.trim().replace(/^v/i, '');
-    const p1 = clean1.split('.').map((n) => parseInt(n, 10) || 0);
-    const p2 = clean2.split('.').map((n) => parseInt(n, 10) || 0);
+    const expand = (s: string): number[] => {
+      const clean = s.trim().replace(/^v/i, '');
+      const out: number[] = [];
+      for (const part of clean.split('.').filter(Boolean)) {
+        if (part.length > 1 && part.startsWith('0')) {
+          let i = 0;
+          while (i < part.length && part[i] === '0') {
+            out.push(0);
+            i++;
+          }
+          if (i < part.length) {
+            out.push(parseInt(part.slice(i), 10) || 0);
+          }
+        } else {
+          out.push(parseInt(part, 10) || 0);
+        }
+      }
+      return out;
+    };
+    const p1 = expand(v1Str);
+    const p2 = expand(v2Str);
     const len = Math.max(p1.length, p2.length);
     for (let i = 0; i < len; i++) {
       const diff = (p1[i] || 0) - (p2[i] || 0);
