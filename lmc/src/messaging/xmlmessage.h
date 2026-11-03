@@ -88,6 +88,7 @@
 #define XN_CPU "cpu"
 #define XN_MEMORY "memory"
 #define XN_GPU "gpu"
+#define XN_DOWNLOADURL "downloadUrl"
 
 class XmlMessage : public QDomDocument {
 public:

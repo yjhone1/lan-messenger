@@ -25,6 +25,9 @@
 #ifndef UPDATEWINDOW_H
 #define UPDATEWINDOW_H
 
+#include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QWidget>
 #include <qevent.h>
 #include "messaging/xmlmessage.h"
@@ -54,21 +57,34 @@ protected:
 
 private slots:
   void btnRecheck_clicked(void);
+  void onDownloadReadyRead(void);
+  void onDownloadProgress(qint64 received, qint64 total);
+  void onDownloadFinished(void);
 
 private:
   void setUIText(void);
   void checkForUpdates(void);
+  void startDownload(void);
   QString getStatusMessage(void);
 
   enum UpdateStatus {
     US_Check,
     US_Error,
     US_New,
-    US_Latest
+    US_Latest,
+    US_Downloading,
+    US_Downloaded
   };
 
   Ui::UpdateWindow* ui;
   QString webVersion;
+  QString downloadUrl;
+  QString savedFilePath;
+  qint64 bytesReceived;
+  qint64 bytesTotal;
+  QNetworkAccessManager* pDownloader;
+  QNetworkReply* pDownloadReply;
+  QFile* pDownloadFile;
   UpdateStatus status;
 };
 

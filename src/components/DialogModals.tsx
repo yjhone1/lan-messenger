@@ -2128,6 +2128,7 @@ export const UpdateWindowModal: React.FC<{
   const [status, setStatus] = useState<'check' | 'latest' | 'new' | 'error'>('check');
   const [webVersion, setWebVersion] = useState<string>('');
   const [rawTag, setRawTag] = useState<string>('');
+  const [directDownloadUrl, setDirectDownloadUrl] = useState<string>('');
 
   const compareVersions = (v1Str: string, v2Str: string): number => {
     const clean1 = v1Str.trim().replace(/^v/i, '');
@@ -2164,6 +2165,28 @@ export const UpdateWindowModal: React.FC<{
       const normalized = tagName.replace(/^v/i, '');
       setWebVersion(normalized);
 
+      let resolvedAssetUrl = '';
+      if (Array.isArray(data.assets)) {
+        const exeAsset = data.assets.find(
+          (a: { name?: string; browser_download_url?: string }) =>
+            typeof a?.name === 'string' &&
+            a.name.toLowerCase().endsWith('.exe') &&
+            typeof a.browser_download_url === 'string'
+        );
+        const zipAsset = data.assets.find(
+          (a: { name?: string; browser_download_url?: string }) =>
+            typeof a?.name === 'string' &&
+            a.name.toLowerCase().endsWith('.zip') &&
+            typeof a.browser_download_url === 'string'
+        );
+        resolvedAssetUrl =
+          exeAsset?.browser_download_url || zipAsset?.browser_download_url || '';
+      }
+      if (!resolvedAssetUrl) {
+        resolvedAssetUrl = `https://github.com/yjhone1/lan-messenger/releases/download/v${normalized}/lmc-${normalized}-win64.exe`;
+      }
+      setDirectDownloadUrl(resolvedAssetUrl);
+
       if (compareVersions(normalized, CURRENT_VERSION) > 0) {
         setStatus('new');
       } else {
@@ -2172,6 +2195,19 @@ export const UpdateWindowModal: React.FC<{
     } catch {
       setStatus('error');
     }
+  };
+
+  const handleRecheckOrDownload = () => {
+    if (status === 'new' && directDownloadUrl) {
+      const anchor = document.createElement('a');
+      anchor.href = directDownloadUrl;
+      anchor.download = directDownloadUrl.split('/').pop() || `lmc-${webVersion}-win64.exe`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      return;
+    }
+    checkForUpdates();
   };
 
   useEffect(() => {
@@ -2187,11 +2223,24 @@ export const UpdateWindowModal: React.FC<{
     >
       <div className="p-3.5 text-xs space-y-3">
         <div className="bg-white border border-[#aca899] p-3 min-h-[96px] flex flex-col justify-between">
-          <div className="font-medium text-slate-900">
-            {status === 'check' && i18n.modals.update.checking}
-            {status === 'error' && i18n.modals.update.error}
-            {status === 'new' && `${i18n.modals.update.newAvailable} (${webVersion})`}
-            {status === 'latest' && i18n.modals.update.upToDate}
+          <div className="font-medium text-slate-900 space-y-1.5">
+            <div>
+              {status === 'check' && i18n.modals.update.checking}
+              {status === 'error' && i18n.modals.update.error}
+              {status === 'new' && `${i18n.modals.update.newAvailable} (${webVersion})`}
+              {status === 'latest' && i18n.modals.update.upToDate}
+            </div>
+            {status === 'new' && directDownloadUrl && (
+              <div>
+                <a
+                  href={directDownloadUrl}
+                  download
+                  className="text-[#0054e3] underline font-semibold hover:text-blue-800 break-all"
+                >
+                  {directDownloadUrl}
+                </a>
+              </div>
+            )}
           </div>
 
           <div className="mt-3 pt-2 border-t border-gray-200 text-[11px] text-gray-600 font-mono space-y-0.5">
@@ -2212,7 +2261,7 @@ export const UpdateWindowModal: React.FC<{
           <button
             type="button"
             disabled={status === 'check'}
-            onClick={checkForUpdates}
+            onClick={handleRecheckOrDownload}
             className="px-4 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] disabled:opacity-50 border border-[#7f9db9] cursor-pointer"
           >
             {i18n.modals.update.recheck}

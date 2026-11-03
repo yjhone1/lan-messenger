@@ -24,6 +24,7 @@
 
 #include "webnetwork.h"
 #include <QDebug>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -83,15 +84,38 @@ void lmcWebNetwork::replyFinished(QNetworkReply* reply) {
     QByteArray data = reply->readAll();
     QString szMessage = QString::fromUtf8(data);
 
-    // Support GitHub Releases API JSON response ({"tag_name": "v1.3.0", ...})
+    // Support GitHub Releases API JSON response ({"tag_name": "v1.3.02", "assets": [...]})
     QJsonParseError jsonError;
     QJsonDocument jsonDoc = QJsonDocument::fromJson(data, &jsonError);
     if(jsonError.error == QJsonParseError::NoError && jsonDoc.isObject()) {
       QJsonObject jsonObj = jsonDoc.object();
       if(jsonObj.contains("tag_name")) {
-        QString tagName = jsonObj.value("tag_name").toString().trimmed();
+        QString rawTag = jsonObj.value("tag_name").toString().trimmed();
+        QString tagName = rawTag;
         if(tagName.startsWith('v', Qt::CaseInsensitive))
           tagName.remove(0, 1);
+
+        QString exeUrl;
+        QString zipUrl;
+        if(jsonObj.contains("assets") && jsonObj.value("assets").isArray()) {
+          QJsonArray assets = jsonObj.value("assets").toArray();
+          for(const QJsonValue& val : assets) {
+            if(!val.isObject())
+              continue;
+            QJsonObject assetObj = val.toObject();
+            QString assetName = assetObj.value("name").toString();
+            QString browserUrl = assetObj.value("browser_download_url").toString();
+            if(assetName.endsWith(".exe", Qt::CaseInsensitive) && exeUrl.isEmpty())
+              exeUrl = browserUrl;
+            else if(assetName.endsWith(".zip", Qt::CaseInsensitive) && zipUrl.isEmpty())
+              zipUrl = browserUrl;
+          }
+        }
+
+        QString directUrl = !exeUrl.isEmpty() ? exeUrl : zipUrl;
+        if(directUrl.isEmpty() && !tagName.isEmpty()) {
+          directUrl = QString(IDA_DOMAIN "/releases/download/v%1/lmc-%1-win64.exe").arg(tagName);
+        }
 
         if(!tagName.isEmpty()) {
           XmlMessage xmlMessage;
@@ -99,6 +123,7 @@ void lmcWebNetwork::replyFinished(QNetworkReply* reply) {
           xmlMessage.addData(XN_WINVERSION, tagName);
           xmlMessage.addData(XN_LINVERSION, tagName);
           xmlMessage.addData(XN_MACVERSION, tagName);
+          xmlMessage.addData(XN_DOWNLOADURL, directUrl);
           szMessage = xmlMessage.toString();
         }
       }

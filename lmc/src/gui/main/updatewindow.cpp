@@ -22,14 +22,27 @@
 ****************************************************************************/
 
 
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QNetworkRequest>
 #include <QScreen>
+#include <QStandardPaths>
+#include <QUrl>
 #include "updatewindow.h"
 #include "ui_updatewindow.h"
 #include "core/shared.h"
 
 lmcUpdateWindow::lmcUpdateWindow(QRect* pRect, QWidget* parent)
-    : QWidget(parent), ui(new Ui::UpdateWindow) {
+    : QWidget(parent),
+      ui(new Ui::UpdateWindow),
+      bytesReceived(0),
+      bytesTotal(0),
+      pDownloader(new QNetworkAccessManager(this)),
+      pDownloadReply(nullptr),
+      pDownloadFile(nullptr),
+      status(US_Check) {
   ui->setupUi(this);
   //	set fixed size
   layout()->setSizeConstraint(QLayout::SetFixedSize);
@@ -55,9 +68,20 @@ lmcUpdateWindow::lmcUpdateWindow(QRect* pRect, QWidget* parent)
   ui->btnRecheck->installEventFilter(this);
 
   webVersion = QString();
+  downloadUrl = QString();
+  savedFilePath = QString();
 }
 
 lmcUpdateWindow::~lmcUpdateWindow() {
+  if(pDownloadReply) {
+    pDownloadReply->abort();
+    pDownloadReply->deleteLater();
+  }
+  if(pDownloadFile) {
+    if(pDownloadFile->isOpen())
+      pDownloadFile->close();
+    delete pDownloadFile;
+  }
   delete ui;
 }
 
@@ -65,12 +89,20 @@ void lmcUpdateWindow::init(void) {
   setWindowIcon(QIcon(IDR_APPICON));
   ui->lblOutput->setBackgroundRole(QPalette::Base);
   ui->lblOutput->setAutoFillBackground(true);
+  ui->lblOutput->setOpenExternalLinks(true);
+  ui->lblOutput->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  ui->lblOutput->setWordWrap(true);
 
   setUIText();
   checkForUpdates();
 }
 
 void lmcUpdateWindow::stop(void) {
+  if(pDownloadReply) {
+    pDownloadReply->abort();
+    pDownloadReply->deleteLater();
+    pDownloadReply = nullptr;
+  }
 }
 
 void lmcUpdateWindow::receiveMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage) {
@@ -85,6 +117,11 @@ void lmcUpdateWindow::receiveMessage(MessageType type, QString* lpszUserId, XmlM
 #elif defined(Q_OS_MAC)
     webVersion = pMessage->data(XN_MACVERSION);
 #endif
+    downloadUrl = pMessage->data(XN_DOWNLOADURL);
+    if(downloadUrl.isEmpty() && !webVersion.isEmpty()) {
+      downloadUrl = QString(IDA_DOMAIN "/releases/download/v%1/lmc-%1-win64.exe").arg(webVersion);
+    }
+
     if(Helper::compareVersions(webVersion, Helper::getAppVersion()) > 0)
       status = US_New; // newer version available online
     else
@@ -131,7 +168,112 @@ void lmcUpdateWindow::changeEvent(QEvent* pEvent) {
 }
 
 void lmcUpdateWindow::btnRecheck_clicked(void) {
+  if(status == US_New) {
+    startDownload();
+    return;
+  }
   checkForUpdates();
+}
+
+void lmcUpdateWindow::startDownload(void) {
+  if(downloadUrl.isEmpty() && !webVersion.isEmpty()) {
+    downloadUrl = QString(IDA_DOMAIN "/releases/download/v%1/lmc-%1-win64.exe").arg(webVersion);
+  }
+  if(downloadUrl.isEmpty()) {
+    checkForUpdates();
+    return;
+  }
+
+  QString downloadDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+  if(downloadDir.isEmpty())
+    downloadDir = QDir::homePath();
+  QDir().mkpath(downloadDir);
+
+  QString fileName = QUrl(downloadUrl).fileName();
+  if(fileName.isEmpty())
+    fileName = QString("lmc-%1-win64.exe").arg(webVersion);
+
+  savedFilePath = QDir(downloadDir).filePath(fileName);
+
+  if(pDownloadFile) {
+    if(pDownloadFile->isOpen())
+      pDownloadFile->close();
+    delete pDownloadFile;
+    pDownloadFile = nullptr;
+  }
+
+  pDownloadFile = new QFile(savedFilePath, this);
+  if(!pDownloadFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    delete pDownloadFile;
+    pDownloadFile = nullptr;
+    // Fallback: trigger direct file download URL via OS handler
+    QDesktopServices::openUrl(QUrl(downloadUrl));
+    return;
+  }
+
+  bytesReceived = 0;
+  bytesTotal = 0;
+  status = US_Downloading;
+  ui->btnRecheck->setEnabled(false);
+  setUIText();
+
+  QNetworkRequest request(QUrl(downloadUrl));
+  request.setRawHeader("User-Agent", "LAN-Messenger/" IDA_VERSION);
+  request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                       QNetworkRequest::NoLessSafeRedirectPolicy);
+
+  pDownloadReply = pDownloader->get(request);
+  connect(pDownloadReply, &QIODevice::readyRead, this, &lmcUpdateWindow::onDownloadReadyRead);
+  connect(pDownloadReply, &QNetworkReply::downloadProgress, this, &lmcUpdateWindow::onDownloadProgress);
+  connect(pDownloadReply, &QNetworkReply::finished, this, &lmcUpdateWindow::onDownloadFinished);
+}
+
+void lmcUpdateWindow::onDownloadReadyRead(void) {
+  if(pDownloadReply && pDownloadFile && pDownloadFile->isOpen()) {
+    pDownloadFile->write(pDownloadReply->readAll());
+  }
+}
+
+void lmcUpdateWindow::onDownloadProgress(qint64 received, qint64 total) {
+  bytesReceived = received;
+  bytesTotal = total;
+  setUIText();
+}
+
+void lmcUpdateWindow::onDownloadFinished(void) {
+  if(!pDownloadReply)
+    return;
+
+  if(pDownloadFile && pDownloadFile->isOpen()) {
+    pDownloadFile->write(pDownloadReply->readAll());
+    pDownloadFile->flush();
+    pDownloadFile->close();
+  }
+
+  bool ok = (pDownloadReply->error() == QNetworkReply::NoError);
+  pDownloadReply->deleteLater();
+  pDownloadReply = nullptr;
+
+  ui->btnRecheck->setEnabled(true);
+
+  if(ok && !savedFilePath.isEmpty() && QFileInfo::exists(savedFilePath) && QFileInfo(savedFilePath).size() > 0) {
+    status = US_Downloaded;
+    setUIText();
+#if defined(Q_OS_WIN)
+    QDesktopServices::openUrl(QUrl::fromLocalFile(savedFilePath));
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(savedFilePath).absolutePath()));
+#endif
+  } else {
+    if(pDownloadFile) {
+      pDownloadFile->remove();
+    }
+    status = US_New;
+    setUIText();
+    // Fallback to direct file URL download
+    if(!downloadUrl.isEmpty())
+      QDesktopServices::openUrl(QUrl(downloadUrl));
+  }
 }
 
 void lmcUpdateWindow::setUIText(void) {
@@ -161,9 +303,36 @@ QString lmcUpdateWindow::getStatusMessage(void) {
   case US_Error:
     message = tr("An error occured while checking for updates.");
     break;
-  case US_New:
-    message = tr("The new version %1 is available on %2 web site.").arg(webVersion, lmcStrings::appName());
+  case US_New: {
+    QString directUrl = !downloadUrl.isEmpty()
+                            ? downloadUrl
+                            : QString(IDA_DOMAIN "/releases/download/v%1/lmc-%1-win64.exe").arg(webVersion);
+    QString fileName = QUrl(directUrl).fileName();
+    message = tr("The new version %1 is available on %2 web site.").arg(webVersion, lmcStrings::appName()) +
+              QString("<br><a href=\"%1\">%2 (%1)</a>").arg(directUrl, fileName);
     break;
+  }
+  case US_Downloading: {
+    QString fileName = QFileInfo(savedFilePath).fileName();
+    double mbDone = static_cast<double>(bytesReceived) / (1024.0 * 1024.0);
+    if(bytesTotal > 0) {
+      int pct = static_cast<int>((bytesReceived * 100) / bytesTotal);
+      double mbTotal = static_cast<double>(bytesTotal) / (1024.0 * 1024.0);
+      message = QString("%1 (%2% - %3 MB / %4 MB)")
+                    .arg(fileName)
+                    .arg(pct)
+                    .arg(QString::number(mbDone, 'f', 1))
+                    .arg(QString::number(mbTotal, 'f', 1));
+    } else {
+      message = QString("%1 (%2 MB)").arg(fileName, QString::number(mbDone, 'f', 1));
+    }
+    break;
+  }
+  case US_Downloaded: {
+    QString fileUrl = QUrl::fromLocalFile(savedFilePath).toString();
+    message = QString("<b>Download Complete:</b><br><a href=\"%1\">%2</a>").arg(fileUrl, savedFilePath);
+    break;
+  }
   case US_Latest:
     message = tr("You have the latest version of %1.").arg(lmcStrings::appName());
     break;
