@@ -117,7 +117,11 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
     time.setMSecsSinceEpoch(pMessage->header(XN_TIME).toLongLong());
     message = pMessage->data(XN_MESSAGE);
     font.fromString(pMessage->data(XN_FONT));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+    color = QColor::fromString(pMessage->data(XN_COLOR));
+#else
     color.setNamedColor(pMessage->data(XN_COLOR));
+#endif
     appendMessage(lpszUserId, lpszUserName, &message, &time, &font, &color);
     lastId = *lpszUserId;
     break;
@@ -126,7 +130,11 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
     time.setMSecsSinceEpoch(pMessage->header(XN_TIME).toLongLong());
     message = pMessage->data(XN_MESSAGE);
     font.fromString(pMessage->data(XN_FONT));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+    color = QColor::fromString(pMessage->data(XN_COLOR));
+#else
     color.setNamedColor(pMessage->data(XN_COLOR));
+#endif
     appendPublicMessage(lpszUserId, lpszUserName, &message, &time, &font, &color, type);
     lastId = *lpszUserId;
     break;
@@ -151,7 +159,11 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
   case MT_Failed:
     message = pMessage->data(XN_MESSAGE);
     font.fromString(pMessage->data(XN_FONT));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+    color = QColor::fromString(pMessage->data(XN_COLOR));
+#else
     color.setNamedColor(pMessage->data(XN_COLOR));
+#endif
     html = themeData.sysMsg;
     caption = tr("This message was not delivered to %1:");
     fontStyle = getFontStyle(&font, &color, true);

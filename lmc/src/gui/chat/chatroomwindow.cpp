@@ -123,7 +123,11 @@ void lmcChatRoomWindow::init(User* pLocalUser, bool connected, QString thread) {
   QFont font = QApplication::font();
   font.fromString(pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
   messageColor = QApplication::palette().text().color();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+  messageColor = QColor::fromString(pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
+#else
   messageColor.setNamedColor(pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
+#endif
   sendKeyMod = pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool();
   showSendButton = pSettings->value(IDS_SHOWSENDBUTTON, IDS_SHOWSENDBUTTON_VAL).toBool();
   ui.btnSend->setVisible(showSendButton);
