@@ -5,7 +5,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
     file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" _lmc_sub_ver LIMIT_COUNT 1)
     string(STRIP "${_lmc_sub_ver}" _lmc_sub_ver)
 else()
-    set(_lmc_sub_ver "1.3.02")
+    set(_lmc_sub_ver "1.3.03")
 endif()
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
