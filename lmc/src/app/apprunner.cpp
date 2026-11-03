@@ -76,7 +76,11 @@ int lmcRunApplication(int argc, char* argv[],
     qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "");
   if(!qEnvironmentVariableIsSet("QT_FFMPEG_ENCODING_HW_DEVICE_TYPES"))
     qputenv("QT_FFMPEG_ENCODING_HW_DEVICE_TYPES", "");
-  QLoggingCategory::setFilterRules(QStringLiteral("qt.multimedia.ffmpeg.info=false\nqt.multimedia.ffmpeg.debug=false"));
+  QLoggingCategory::setFilterRules(QStringLiteral(
+      "qt.multimedia.ffmpeg.info=false\n"
+      "qt.multimedia.ffmpeg.debug=false\n"
+      "qt.text.font.db*=false\n"
+      "qt.qpa.wayland.textinput*=false"));
 
   Application application(appId, argc, argv);
   QDir::setCurrent(QApplication::applicationDirPath());
