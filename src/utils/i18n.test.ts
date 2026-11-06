@@ -124,11 +124,11 @@ test('userInfo modal labels include Windows/OS version detail, CPU, Memory, GPU,
   assert.equal(ko.macAddress, 'MAC 주소 (맥주소):');
 });
 
-test('VERSION_CONFIG defines v1.3.0.4 consistently for main window UI and UserInfoWindowModal', () => {
-  assert.equal(VERSION_CONFIG.version, 'v1.3.0.4');
-  assert.equal(VERSION_CONFIG.displayVersion, 'v1.3.0.4');
-  assert.equal(VERSION_CONFIG.rawVersion, '1.3.0.4');
-  assert.equal(VERSION_CONFIG.fullTitle, 'LAN Messenger v1.3.0.4');
+test('VERSION_CONFIG defines v1.4.0.0 consistently for main window UI and UserInfoWindowModal', () => {
+  assert.equal(VERSION_CONFIG.version, 'v1.4.0.0');
+  assert.equal(VERSION_CONFIG.displayVersion, 'v1.4.0.0');
+  assert.equal(VERSION_CONFIG.rawVersion, '1.4.0.0');
+  assert.equal(VERSION_CONFIG.fullTitle, 'LAN Messenger v1.4.0.0');
   assert.equal(APP_VERSION, VERSION_CONFIG.version);
 });
 

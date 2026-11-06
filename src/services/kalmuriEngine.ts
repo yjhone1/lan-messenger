@@ -423,7 +423,7 @@ export function extractTextFromRegion(
   // Fallback context-aware OCR sample
   if (lang === 'ko') {
     return `[칼무리 OCR 글자 인식 결과]
-프로그램: LAN Messenger v1.3.0.4
+프로그램: LAN Messenger v1.4.0.0
 호스트: WIN7-LAB-PC04 (192.168.1.104)
 상태: 대화 가능 (Available)
 암호화 모드: OpenSSL 3.0.13 <-> 1.0.2u Legacy 호환 모드
@@ -431,7 +431,7 @@ export function extractTextFromRegion(
   }
 
   return `[Kalmuri OCR Text Recognition]
-Application: LAN Messenger v1.3.0.4
+Application: LAN Messenger v1.4.0.0
 Host: WIN7-LAB-PC04 (192.168.1.104)
 Status: Available
 Security: OpenSSL 3.0.13 <-> 1.0.2u Legacy Interop

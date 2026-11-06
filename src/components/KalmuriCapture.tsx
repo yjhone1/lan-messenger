@@ -563,7 +563,7 @@ export function KalmuriCapture({
           <div className="flex items-center gap-1.5 font-bold tracking-tight text-[11px]">
             <span>📸</span>
             <span>칼무리 (Kalmuri)</span>
-            <span className="text-[10px] opacity-80 font-normal">v1.3.0.4</span>
+            <span className="text-[10px] opacity-80 font-normal">v1.4.0.0</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -1966,7 +1966,7 @@ function KalmuriSettingsModal({
                 <span className="text-3xl">📸</span>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    칼무리 (Kalmuri) v1.3.0.4
+                    칼무리 (Kalmuri) v1.4.0.0
                   </h3>
                   <p className="text-gray-500 text-xs">
                     단축키 한 번으로 화면 캡처 및 화면 녹화
@@ -1978,7 +1978,7 @@ function KalmuriSettingsModal({
                 <p><b>만든이:</b> 오길호 (Kilho Oh)</p>
                 <p><b>홈페이지:</b> <a href="https://kalmuri.kilho.net" target="_blank" rel="noreferrer" className="text-blue-600 underline">https://kalmuri.kilho.net</a></p>
                 <p><b>라이선스:</b> 프리웨어 (개인/기업 누구나 무료)</p>
-                <p><b>랜메신저 연동:</b> LAN Messenger v1.3.0.4 완벽 통합 및 단축키 충돌 방지</p>
+                <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.0 완벽 통합 및 단축키 충돌 방지</p>
               </div>
 
               <div className="pt-2 border-t flex justify-between items-center">
