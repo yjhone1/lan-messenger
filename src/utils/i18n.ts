@@ -31,6 +31,8 @@ export interface I18nLabels {
     history: string;
     fileTransfers: string;
     cryptoInspector: string;
+    kalmuriCapture: string;
+    kalmuriCaptureTooltip: string;
     preferences: string;
     // Help menu items
     helpDocs: string;
@@ -99,6 +101,7 @@ export interface I18nLabels {
     sendFileTooltip: string;
     sendFolderTooltip: string;
     remoteDesktopTooltip: string;
+    captureScreenTooltip: string;
     saveConversationTooltip: string;
     viewTransfersTooltip: string;
     viewHistoryTooltip: string;
@@ -321,6 +324,8 @@ export const EN_US_LABELS: I18nLabels = {
     history: 'History (Ctrl+H)',
     fileTransfers: 'File Transfers (Ctrl+J)',
     cryptoInspector: 'OpenSSL 3.0 ↔ 1.0 Inspector',
+    kalmuriCapture: 'Screen Capture (Kalmuri)... [PrintScreen / F11]',
+    kalmuriCaptureTooltip: 'Open Kalmuri Screen Capture & Recording Tool (PrintScreen / F11 - No conflict with LAN Messenger shortcuts)',
     preferences: 'Preferences... (Ctrl+P)',
     helpDocs: 'Help & Protocol Docs (F1)',
     checkUpdates: 'Check for Updates...',
@@ -396,6 +401,7 @@ export const EN_US_LABELS: I18nLabels = {
     sendFileTooltip: 'Send a file to',
     sendFolderTooltip: 'Send a folder to',
     remoteDesktopTooltip: 'Remote Desktop',
+    captureScreenTooltip: 'Screen Capture & Send to Chat (Kalmuri - PrintScreen / F11)',
     saveConversationTooltip: 'Save this conversation (Ctrl+S)',
     viewTransfersTooltip: 'View File Transfers (Ctrl+J)',
     viewHistoryTooltip: 'View History (Ctrl+H)',
@@ -616,6 +622,8 @@ export const KO_KR_LABELS: I18nLabels = {
     history: '대화 기록 (Ctrl+H)',
     fileTransfers: '파일 전송 목록 (Ctrl+J)',
     cryptoInspector: 'OpenSSL 3.0 ↔ 1.0 인스펙터',
+    kalmuriCapture: '화면 캡쳐 (칼무리)... [PrintScreen / F11]',
+    kalmuriCaptureTooltip: '칼무리 화면 캡처 및 화면 녹화 도구 (PrintScreen / F11 - 랜메신저 단축키와 분리됨)',
     preferences: '환경설정... (Ctrl+P)',
     helpDocs: '도움말 및 프로토콜 문서 (F1)',
     checkUpdates: '업데이트 확인...',
@@ -691,6 +699,7 @@ export const KO_KR_LABELS: I18nLabels = {
     sendFileTooltip: '파일 보내기:',
     sendFolderTooltip: '폴더 보내기:',
     remoteDesktopTooltip: '원격 데스크톱 연결',
+    captureScreenTooltip: '화면 캡쳐 후 대화방으로 전송 (칼무리 - PrintScreen / F11)',
     saveConversationTooltip: '대화 내용 저장 (Ctrl+S)',
     viewTransfersTooltip: '파일 전송 목록 보기 (Ctrl+J)',
     viewHistoryTooltip: '대화 기록 보기 (Ctrl+H)',

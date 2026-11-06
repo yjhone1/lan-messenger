@@ -27,6 +27,8 @@ import {
   LmcCrypto,
 } from './services/cryptoEngine';
 import { ChatWindow } from './components/ChatWindow';
+import { KalmuriCapture } from './components/KalmuriCapture';
+import { CapturedItem } from './types/kalmuri';
 import {
   AboutDialogModal,
   BroadcastWindowModal,
@@ -305,6 +307,40 @@ export function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [inspectingUser, setInspectingUser] = useState<User | null>(null);
   const [remoteDesktopPeer, setRemoteDesktopPeer] = useState<User | null>(null);
+  const [showKalmuriCapture, setShowKalmuriCapture] = useState(true);
+
+  const handleSendCaptureToChat = (item: CapturedItem) => {
+    const peerId = activeChatPeerId || (peers[0] ? peers[0].id : '');
+    if (!peerId) return;
+
+    const capMsg: ChatMessage = {
+      id: `capmsg-${Date.now()}`,
+      type: 'message',
+      senderId: localUser.id,
+      senderName: localUser.name,
+      recipientId: peerId,
+      text: `[화면 캡쳐: ${item.fileName}]`,
+      timestamp: Date.now(),
+      protocolMode: settings.protocolMode,
+      wireHeader: settings.protocolMode === 'Legacy v1.0' ? 'MESSAG' : 'MSGv30',
+      xmlPayload: '',
+      encryptedHex: '',
+      imageUrl: item.dataUrl,
+      fileName: item.fileName,
+      fileSize: item.fileSize,
+      isCapture: true,
+    };
+
+    setConversations((prev) => ({
+      ...prev,
+      [peerId]: [...(prev[peerId] || []), capMsg],
+    }));
+
+    triggerTrayBalloon(
+      '화면 캡쳐 전송 완료',
+      `${item.fileName} 파일이 대화방으로 전송되었습니다.`
+    );
+  };
 
   // System Tray Balloon Notification
   const [trayBalloon, setTrayBalloon] = useState<{
@@ -1095,6 +1131,21 @@ export function App() {
             </span>
           </button>
 
+          {/* Kalmuri Screen Capture Launch Button */}
+          <button
+            type="button"
+            onClick={() => setShowKalmuriCapture((v) => !v)}
+            title={i18n.mainWindow.kalmuriCaptureTooltip}
+            className={`px-2.5 py-0.5 rounded text-[11px] font-bold border flex items-center gap-1.5 cursor-pointer shadow-xs ${
+              showKalmuriCapture
+                ? 'bg-blue-600 border-blue-400 text-white'
+                : 'bg-white/10 hover:bg-white/20 border-white/20 text-sky-200'
+            }`}
+          >
+            <span>📸</span>
+            <span>{i18n.mainWindow.kalmuriCapture}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowCryptoInspectorModal(true)}
@@ -1301,6 +1352,17 @@ export function App() {
                 >
                   <img src="/resources/images/networksettings.png" alt="" className="w-4 h-4" />
                   <span>{i18n.mainWindow.cryptoInspector}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowKalmuriCapture(true);
+                    setActiveMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer font-medium"
+                >
+                  <span className="text-sm">📸</span>
+                  <span>{i18n.mainWindow.kalmuriCapture}</span>
                 </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
@@ -1528,6 +1590,14 @@ export function App() {
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer"
               >
                 <img src="/resources/images/tools.png" alt="Preferences" className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowKalmuriCapture(true)}
+                title={i18n.mainWindow.kalmuriCaptureTooltip}
+                className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center justify-center text-xs"
+              >
+                <span>📸</span>
               </button>
             </div>
 
@@ -1774,6 +1844,7 @@ export function App() {
                   const target = peers.find((p) => p.id === pid);
                   if (target) setRemoteDesktopPeer(target);
                 }}
+                onOpenCapture={() => setShowKalmuriCapture(true)}
                 onOpenHistory={() => setShowHistoryModal(true)}
                 onOpenTransfers={() => setShowTransfersModal(true)}
                 onToggleProtocolMode={handleToggleProtocolMode}
@@ -2000,6 +2071,14 @@ export function App() {
           onClose={() => setShowAboutModal(false)}
         />
       )}
+
+      {/* Kalmuri Screen Capture & Recording Suite (No shortcut conflict) */}
+      <KalmuriCapture
+        isOpen={showKalmuriCapture}
+        onClose={() => setShowKalmuriCapture(false)}
+        onSendToChat={handleSendCaptureToChat}
+        activeChatPeerName={activePeer?.name}
+      />
     </div>
   );
 }

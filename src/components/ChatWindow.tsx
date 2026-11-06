@@ -34,6 +34,7 @@ interface ChatWindowProps {
   onSendFile: (peerId: string, isFolder: boolean, customFileName?: string, customFileSize?: number) => void;
   onFileAction: (transferId: string, messageId: string, action: 'accept' | 'decline' | 'cancel') => void;
   onStartRemoteDesktop: (peerId: string) => void;
+  onOpenCapture?: () => void;
   onOpenHistory: () => void;
   onOpenTransfers: () => void;
   onToggleProtocolMode: (newMode: ProtocolHeaderMode) => void;
@@ -128,6 +129,38 @@ export function renderTextWithSmileysAndLinks(
       </React.Fragment>
     );
   });
+}
+
+export function renderMessageItemContent(
+  item: ChatMessage,
+  showEmoticons: boolean,
+  allowLinks: boolean
+) {
+  return (
+    <>
+      {renderTextWithSmileysAndLinks(item.text, showEmoticons, allowLinks)}
+      {item.imageUrl && (
+        <div className="mt-2 p-1.5 bg-black/5 rounded border border-gray-300 inline-block max-w-full">
+          <img
+            src={item.imageUrl}
+            alt={item.fileName || 'Screenshot'}
+            className="max-w-xs max-h-52 object-contain rounded cursor-pointer hover:opacity-95 shadow-xs"
+            onClick={() => window.open(item.imageUrl, '_blank')}
+          />
+          <div className="text-[10px] text-gray-600 mt-1 flex items-center justify-between gap-2">
+            <span className="truncate font-semibold">📸 {item.fileName || 'Kalmuri Capture'}</span>
+            <a
+              href={item.imageUrl}
+              download={item.fileName || 'capture.png'}
+              className="text-blue-600 hover:underline font-bold shrink-0"
+            >
+              다운로드
+            </a>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 export const ThemedMessageLog: React.FC<{
@@ -399,8 +432,8 @@ export const ThemedMessageLog: React.FC<{
                             color: item.fontColor || settings.fontColor,
                           }}
                         >
-                          {renderTextWithSmileysAndLinks(
-                            item.text,
+                          {renderMessageItemContent(
+                            item,
                             settings.showEmoticons,
                             settings.allowLinks
                           )}
@@ -451,8 +484,8 @@ export const ThemedMessageLog: React.FC<{
                             fontFamily: item.fontFamily || settings.fontFamily,
                           }}
                         >
-                          {renderTextWithSmileysAndLinks(
-                            item.text,
+                          {renderMessageItemContent(
+                            item,
                             settings.showEmoticons,
                             settings.allowLinks
                           )}
@@ -503,8 +536,8 @@ export const ThemedMessageLog: React.FC<{
                         color: item.fontColor || settings.fontColor,
                       }}
                     >
-                      {renderTextWithSmileysAndLinks(
-                        item.text,
+                      {renderMessageItemContent(
+                        item,
                         settings.showEmoticons,
                         settings.allowLinks
                       )}
@@ -549,8 +582,8 @@ export const ThemedMessageLog: React.FC<{
                           color: item.fontColor || settings.fontColor,
                         }}
                       >
-                        {renderTextWithSmileysAndLinks(
-                          item.text,
+                        {renderMessageItemContent(
+                          item,
                           settings.showEmoticons,
                           settings.allowLinks
                         )}
@@ -597,8 +630,8 @@ export const ThemedMessageLog: React.FC<{
                       color: item.fontColor || settings.fontColor,
                     }}
                   >
-                    {renderTextWithSmileysAndLinks(
-                      item.text,
+                    {renderMessageItemContent(
+                      item,
                       settings.showEmoticons,
                       settings.allowLinks
                     )}
@@ -646,6 +679,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onSendFile,
   onFileAction,
   onStartRemoteDesktop,
+  onOpenCapture,
   onOpenHistory,
   onOpenTransfers,
   onToggleProtocolMode,
@@ -975,6 +1009,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               className="w-4 h-4"
             />
           </button>
+
+          {/* Screen Capture (Kalmuri) */}
+          {onOpenCapture && (
+            <button
+              type="button"
+              onClick={onOpenCapture}
+              title={i18n.chatWindow.captureScreenTooltip}
+              className="p-1 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center justify-center text-xs"
+            >
+              <span>📸</span>
+            </button>
+          )}
 
           <div className="h-4 w-[1px] bg-[#aca899] mx-0.5" />
 

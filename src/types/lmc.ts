@@ -257,6 +257,8 @@ export interface ChatMessage {
   fileMode?: 'send' | 'receive';
   fileOp?: 'request' | 'accept' | 'decline' | 'cancel' | 'progress' | 'complete' | 'abort';
   isFolder?: boolean;
+  imageUrl?: string;
+  isCapture?: boolean;
 }
 
 export interface FileTransferItem {
