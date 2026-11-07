@@ -1,6 +1,6 @@
-# LAN Messenger v1.4.0.0 개발 환경 & 아키텍처 가이드 (오픈소스캡쳐 통합판)
+# LAN Messenger v1.4.0.1 개발 환경 & 아키텍처 가이드 (오픈소스캡쳐 통합판)
 
-이 문서는 **LAN Messenger `v1.4.0.0`**에서 새롭게 통합된 **오픈소스캡쳐(OpenSourceCapture) 화면 캡처 및 동영상 녹화 스위트**, **OpenSSL 3.0 ↔ 1.0 호환성 아키텍처**, **원격 데스크톱 제어(Remote Desktop)** 기능과 빌드 환경을 정리한 가이드입니다.
+이 문서는 **LAN Messenger `v1.4.0.1`**에서 새롭게 통합된 **오픈소스캡쳐(OpenSourceCapture) 화면 캡처 및 동영상 녹화 스위트**, **OpenSSL 3.0 ↔ 1.0 호환성 아키텍처**, **원격 데스크톱 제어(Remote Desktop)** 기능과 빌드 환경을 정리한 가이드입니다.
 
 ---
 
@@ -43,20 +43,21 @@
 
 ---
 
-## 2. 버전 정보 동기화 현황 (`1.4.0.0`)
+## 2. 버전 정보 동기화 현황 (`1.4.0.1`)
 
-모든 빌드 및 패키징 설정 파일이 `1.4.0.0`으로 완전히 통일되었습니다.
+모든 빌드 및 패키징 설정 파일이 `1.4.0.1`로 완전히 통일되었습니다.
 
 | 파일 경로 | 설정 항목 | 적용 값 |
 | :--- | :--- | :--- |
-| `/VERSION` | 프로젝트 버전 | `1.4.0.0` |
-| `CMakeLists.txt` | project version | `1.4.0.0` |
-| `lmc/CMakeLists.txt` | LMC_VERSION | `1.4.0.0` |
-| `lmc/src/core/definitions.h` | IDA_VERSION | `1.4.0.0` |
-| `lmc/src/app/lmcwin32.rc` | FILEVERSION / PRODUCTVERSION | `1,4,0,0` / `"1.4.0.0"` |
-| `lmc/setup/win32/setup.nsi` | ProductVersion / InstallerVersion | `1.4.0.0` |
-| `LANMessenger.pro` | IDA_VERSION | `1.4.0.0` |
-| `.github/workflows/windows-release.yml` | 릴리스 태그 | `v1.4.0.0` |
+| `/VERSION` | 프로젝트 버전 | `1.4.0.1` |
+| `CMakeLists.txt` | project version | `1.4.0.1` |
+| `lmc/CMakeLists.txt` | LMC_VERSION | `1.4.0.1` |
+| `lmc/src/core/definitions.h` | IDA_VERSION / LMC_APP_VERSION | `1.4.0.1` |
+| `lmc/src/app/lmcwin32.rc` | FILEVERSION / PRODUCTVERSION | `1,4,0,1` / `"1.4.0.1"` |
+| `lmc/setup/win32/setup.nsi` | ProductVersion / InstallerVersion | `1.4.0.1` |
+| `LANMessenger.pro` | IDA_VERSION | `1.4.0.1` |
+| `.github/workflows/windows-release.yml` | 릴리스 환경변수 LMC_VERSION | `1.4.0.1` |
+| `src/types/lmc.ts` | VERSION_CONFIG | `v1.4.0.1` (`1.4.0.1`) |
 
 ---
 

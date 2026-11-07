@@ -1,10 +1,10 @@
 export const VERSION_CONFIG = {
-  version: 'v1.4.0.0',
-  rawVersion: '1.4.0.0',
-  displayVersion: 'v1.4.0.0',
-  current: 'v1.4.0.0',
+  version: 'v1.4.0.1',
+  rawVersion: '1.4.0.1',
+  displayVersion: 'v1.4.0.1',
+  current: 'v1.4.0.1',
   appName: 'LAN Messenger',
-  fullTitle: 'LAN Messenger v1.4.0.0',
+  fullTitle: 'LAN Messenger v1.4.0.1',
   legacyBaseVersion: '1.2.39',
 } as const;
 
