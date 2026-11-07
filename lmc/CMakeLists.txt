@@ -57,6 +57,7 @@ add_library(lmc_core STATIC
     src/app/apprunner.cpp
     src/app/lmc.cpp
     src/core/lmcstrings.cpp
+    src/capture/capturewindow.cpp
     src/gui/main/mainwindow.cpp
     src/messaging/message.cpp
     src/gui/chat/messagelog.cpp
@@ -94,6 +95,8 @@ add_library(lmc_core STATIC
     src/gui/chat/broadcastwindow.h
     src/gui/chat/chatdefinitions.h
     src/gui/chat/chatwindow.h
+    src/capture/capturedefinitions.h
+    src/capture/capturewindow.h
     src/gui/chat/chathelper.h
     src/gui/chat/chatroomwindow.h
     src/core/crypto.h

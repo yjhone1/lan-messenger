@@ -36,7 +36,7 @@ test('validateCaptureShortcut rejects all LAN Messenger reserved shortcuts', () 
   assert.equal(validateCaptureShortcut('enter').isConflict, true);
 });
 
-test('validateCaptureShortcut allows recommended Kalmuri shortcuts without conflict', () => {
+test('validateCaptureShortcut allows recommended OpenSourceCapture shortcuts without conflict', () => {
   for (const rec of RECOMMENDED_CAPTURE_SHORTCUTS) {
     const check = validateCaptureShortcut(rec.key);
     assert.equal(
@@ -127,8 +127,8 @@ test('generateFileName correctly formats datetime rule (K-YYYYMMDD-HHMMSS.ext)',
   assert.match(dtMp4, /^K-\d{8}-\d{6,8}\.mp4$/);
 });
 
-test('rgbToTColor, rgbToWeb, rgbToHex match Kalmuri specifications', () => {
-  // Kalmuri manual test vector:
+test('rgbToTColor, rgbToWeb, rgbToHex match OpenSourceCapture specifications', () => {
+  // Test vector:
   // Color with RGB(255, 153, 51):
   // HEX: FF9933
   // RGB: 255,153,51

@@ -26,10 +26,12 @@
 #include <QTimer>
 #include <QRandomGenerator>
 #include <QUrl>
+#include <QShortcut>
 #include "mainwindow.h"
 #include "gui/widgets/actionhelper.h"
 #include "gui/chat/messagelog.h"
 #include "messaging/history.h"
+#include "capture/capturewindow.h"
 
 lmcMainWindow::lmcMainWindow(QWidget* parent, Qt::WindowFlags flags)
     : QWidget(parent, flags) {
@@ -101,6 +103,9 @@ void lmcMainWindow::init(User* pLocalUser, QList<Group>* pGroupList, bool connec
   setUIText();
 
   initGroups(pGroupList);
+
+  new QShortcut(QKeySequence(Qt::Key_Print), this, SLOT(captureAction_triggered()));
+  new QShortcut(QKeySequence(Qt::Key_F11), this, SLOT(captureAction_triggered()));
 }
 
 void lmcMainWindow::start(void) {
@@ -700,6 +705,11 @@ void lmcMainWindow::createMainMenu(void) {
   exitAction = ActionHelper::createAction(pFileMenu, "E&xit", this, &lmcMainWindow::trayExitAction_triggered,
                                           QIcon(QPixmap(IDR_CLOSE, "PNG")));
   pToolsMenu = pMainMenu->addMenu("&Tools");
+  captureAction = ActionHelper::createAction(pToolsMenu, "Screen &Capture (OpenSourceCapture)...", this,
+                                             &lmcMainWindow::captureAction_triggered,
+                                             QIcon(QPixmap(IDR_TOOLS, "PNG")),
+                                             QKeySequence(Qt::Key_Print));
+  pToolsMenu->addSeparator();
   historyAction = ActionHelper::createAction(pToolsMenu, "&History", this,
                                              &lmcMainWindow::trayHistoryAction_triggered,
                                              QIcon(QPixmap(IDR_HISTORY, "PNG")),
@@ -738,6 +748,10 @@ void lmcMainWindow::createTrayMenu(void) {
   pTrayMenu->addSeparator();
   trayStatusAction = pTrayMenu->addMenu(pStatusMenu);
   trayStatusAction->setText("&Change Status");
+  pTrayMenu->addSeparator();
+  trayCaptureAction = ActionHelper::createAction(pTrayMenu, "Screen &Capture (OpenSourceCapture)...", this,
+                                                 &lmcMainWindow::captureAction_triggered,
+                                                 QIcon(QPixmap(IDR_TOOLS, "PNG")));
   pTrayMenu->addSeparator();
   trayHistoryAction = ActionHelper::createAction(pTrayMenu, "&History", this,
                                                  &lmcMainWindow::trayHistoryAction_triggered,
@@ -861,6 +875,10 @@ void lmcMainWindow::createToolBar(void) {
   toolPublicChatAction = ActionHelper::createAction(pToolBar, "&Public Chat", this,
                                                     &lmcMainWindow::publicChatAction_triggered,
                                                     QIcon(QPixmap(IDR_CHATROOM, "PNG")));
+  pToolBar->addSeparator();
+  toolCaptureAction = ActionHelper::createAction(pToolBar, "Screen &Capture (OpenSourceCapture)", this,
+                                                 &lmcMainWindow::captureAction_triggered,
+                                                 QIcon(QPixmap(IDR_TOOLS, "PNG")));
 
   QToolButton* pButton = (QToolButton*)pToolBar->widgetForAction(toolChatAction);
   pButton->setAutoRaise(false);
@@ -871,6 +889,8 @@ void lmcMainWindow::createToolBar(void) {
   pButton = (QToolButton*)pToolBar->widgetForAction(toolChatRoomAction);
   pButton->setAutoRaise(false);
   pButton = (QToolButton*)pToolBar->widgetForAction(toolPublicChatAction);
+  pButton->setAutoRaise(false);
+  pButton = (QToolButton*)pToolBar->widgetForAction(toolCaptureAction);
   pButton->setAutoRaise(false);
 }
 
@@ -917,6 +937,9 @@ void lmcMainWindow::setUIText(void) {
   toolBroadcastAction->setText(tr("Send &Broadcast Message"));
   toolChatRoomAction->setText(tr("&New Chat Room"));
   toolPublicChatAction->setText(tr("&Public Chat"));
+  captureAction->setText(tr("Screen &Capture (OpenSourceCapture)..."));
+  trayCaptureAction->setText(tr("Screen &Capture (OpenSourceCapture)..."));
+  toolCaptureAction->setText(tr("Screen &Capture (OpenSourceCapture)"));
 
   for(int index = 0; index < statusGroup->actions().count(); index++)
     statusGroup->actions()[index]->setText(lmcStrings::statusDesc()[index]);
@@ -1124,3 +1147,11 @@ void lmcMainWindow::setTrayTooltip(void) {
     pTrayIcon->setToolTip(msg.arg(lmcStrings::appName()));
   }
 }
+
+void lmcMainWindow::captureAction_triggered(void) {
+  lmcCaptureWindow* pWnd = lmcCaptureWindow::instance();
+  pWnd->show();
+  pWnd->raise();
+  pWnd->activateWindow();
+}
+

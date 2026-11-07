@@ -148,7 +148,7 @@ export function renderMessageItemContent(
             onClick={() => window.open(item.imageUrl, '_blank')}
           />
           <div className="text-[10px] text-gray-600 mt-1 flex items-center justify-between gap-2">
-            <span className="truncate font-semibold">📸 {item.fileName || 'Kalmuri Capture'}</span>
+            <span className="truncate font-semibold">📸 {item.fileName || 'OpenSourceCapture'}</span>
             <a
               href={item.imageUrl}
               download={item.fileName || 'capture.png'}
@@ -1010,7 +1010,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             />
           </button>
 
-          {/* Screen Capture (Kalmuri) */}
+          {/* Screen Capture (OpenSourceCapture) */}
           {onOpenCapture && (
             <button
               type="button"

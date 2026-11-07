@@ -422,7 +422,7 @@ export function extractTextFromRegion(
 
   // Fallback context-aware OCR sample
   if (lang === 'ko') {
-    return `[칼무리 OCR 글자 인식 결과]
+    return `[오픈소스캡쳐 OCR 글자 인식 결과]
 프로그램: LAN Messenger v1.4.0.0
 호스트: WIN7-LAB-PC04 (192.168.1.104)
 상태: 대화 가능 (Available)
@@ -430,7 +430,7 @@ export function extractTextFromRegion(
 시간: ${new Date().toLocaleTimeString('ko-KR')}`;
   }
 
-  return `[Kalmuri OCR Text Recognition]
+  return `[OpenSourceCapture OCR Text Recognition]
 Application: LAN Messenger v1.4.0.0
 Host: WIN7-LAB-PC04 (192.168.1.104)
 Status: Available

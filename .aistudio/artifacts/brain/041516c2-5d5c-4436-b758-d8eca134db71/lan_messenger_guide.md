@@ -1,49 +1,67 @@
-# LAN Messenger v1.3.0 개발 환경 & 아키텍처 가이드 (v1.2.39 기반 확장판)
+# LAN Messenger v1.4.0.0 개발 환경 & 아키텍처 가이드 (오픈소스캡쳐 통합판)
 
-이 문서는 기존 **LAN Messenger `v1.2.39`**를 기반으로 **① OpenSSL 3.0 ↔ 1.0 호환성 아키텍처**와 **② 원격 데스크톱 제어(Remote Desktop) 기능**을 추가하여 **`v1.3.0`**으로 정식 버전업한 전체 내역과 빌드 워크플로우를 정리한 아티팩트 문서입니다.
+이 문서는 **LAN Messenger `v1.4.0.0`**에서 새롭게 통합된 **오픈소스캡쳐(OpenSourceCapture) 화면 캡처 및 동영상 녹화 스위트**, **OpenSSL 3.0 ↔ 1.0 호환성 아키텍처**, **원격 데스크톱 제어(Remote Desktop)** 기능과 빌드 환경을 정리한 가이드입니다.
 
 ---
 
-## 1. `v1.3.0` 버전 반영 파일 총정리
+## 1. 오픈소스캡쳐(OpenSourceCapture) 화면 캡처 & 동영상 녹화 기능 구현 내역
 
-| 분류 | 파일 경로 | 반영된 내용 |
+### 1) 네이티브 C++ Qt 구현 (`lmc/src/capture/`)
+- **`capturedefinitions.h`**:
+  - 7가지 캡처 영역 정의 (`CA_FullScreen`, `CA_Area`, `CA_Drag`, `CA_ActiveWindow`, `CA_Control`, `CA_WebPage`, `CA_Color`)
+  - 저장 형식 (`CF_PNG`, `CF_JPG`, `CF_GIF`, `CF_BMP`, `CF_WebP`, `CF_TXT`, `CF_Clipboard`, `CF_Floating`, `CF_Printer`)
+  - 파일명 명명 규칙 (`NR_Sequential1` K-001 순차적, `NR_Sequential2` 빈 번호 채우기, `NR_DateTime` K-YYYYMMDD-HHMMSS)
+  - 색상 변환 함수: Delphi/Windows TColor 형식(`$00BBGGRR`) 변환기
+  - **단축키 충돌 방지기 (`isShortcutConflictingWithLmc`)**: LAN Messenger 필수 단축키(`Ctrl+G`, `Ctrl+B`, `Ctrl+H`, `Ctrl+J`, `Ctrl+P`, `Ctrl+S`, `Enter/Ctrl+Enter`)를 절대 침범하지 않도록 보호
+- **`capturewindow.h` / `capturewindow.cpp`**:
+  - **`lmcCaptureWindow`**: 오픈소스캡쳐 메인 플로팅 제어창 (영역 콤보, 포맷 콤보, 품질 선택, 캡처/REC 버튼, 폴더열기, 환경설정)
+  - **`lmcAreaFrameWidget`**: 영역화면 캡처용 테두리 창. 
+    - 방향키(1px 이동), `Ctrl+방향키`(10px 이동), `Shift+방향키`(1px 크기 조절)
+    - 프리셋 크기 (320x240, 640x480, 800x600, 1024x768, 1280x720 HD, 1920x1080 FHD)
+    - 상단 머리띠(현재 크기 표시, REC/캡처 버튼, 닫기)
+  - **`lmcDragOverlayWidget`**: 마우스 드래그 영역 선택 오버레이
+  - **`lmcFloatingWidget`**: 캡처 이미지를 화면 항상 위에 띄워 두는 플러팅 창
+  - 색상 추출 시 클립보드에 HEX, RGB, TColor 코드 자동 복사
+- **LAN Messenger UI 연동**:
+  - **메인 윈도우 (`lmcMainWindow`)**:
+    - 메뉴바 `Tools` → `Screen Capture (OpenSourceCapture)...`
+    - 메인 툴바 카메라/도구 아이콘 버튼
+    - 트레이 메뉴 `Screen Capture (OpenSourceCapture)...`
+    - `PrintScreen` 및 `F11` 단축키 등록 (`new QShortcut`)
+  - **채팅 윈도우 (`lmcChatWindow`)**:
+    - 채팅 툴바에 캡처 버튼 추가
+    - 캡처 완료 시 채팅 상대방에게 캡처 이미지를 즉시 파일로 전송 연동
+
+### 2) 웹 시뮬레이터 구현 (`src/`)
+- **전역 단축키 핸들러 (`src/App.tsx`)**:
+  - `window.addEventListener('keydown')`을 통해 `PrintScreen`, `F11`, `Ctrl+Shift+S` 감지
+  - 브라우저 기본 동작 차단(`e.preventDefault()`) 및 오픈소스캡쳐 창 자동 복원/실행
+- **시각 피드백 & 토스트 알림**:
+  - 셔터 플래시(카메라 섬광 효과)
+  - 캡처 완료 팝업 알림 (파일명, 크기, 미리보기 썸네일, 폴더열기 단추)
+  - 오픈소스캡쳐 창이 닫혀 있을 때도 우측 하단에 대기 상태 배지 제공
+
+---
+
+## 2. 버전 정보 동기화 현황 (`1.4.0.0`)
+
+모든 빌드 및 패키징 설정 파일이 `1.4.0.0`으로 완전히 통일되었습니다.
+
+| 파일 경로 | 설정 항목 | 적용 값 |
 | :--- | :--- | :--- |
-| **설정 마이그레이션** | `lmc/src/core/settings.cpp` | 테스트용 태그였던 `"1.3.3"` 비교 구문을 `if(Helper::compareVersions(version, "1.3.0") < 0)`으로 수정 |
-| **앱 버전/설명 매크로** | `lmc/src/core/definitions.h` | `IDA_VERSION` 기본값을 `"1.3.0"`으로 설정, `IDA_DESCRIPTION`(About 창 설명)에 v1.2.39 기반 OpenSSL 3.0/1.0 호환 및 Remote Desktop 내역 추가 |
-| **CMake 빌드 설정** | `CMakeLists.txt`, `lmc/CMakeLists.txt` | `project(lan-messenger VERSION 1.3.0)` 및 `LMC_VERSION "1.3.0"` 기본값 적용 |
-| **QMake 프로젝트** | `LANMessenger.pro` | `IDA_VERSION=\"1.3.0\"` 반영 |
-| **GitHub 윈도우 배포** | `.github/workflows/windows-release.yml` | GitHub Releases 태그를 `v1.3.0`, 제목을 `LAN Messenger v1.3.0 Windows Release`로 설정 및 릴리스 노트 반영 |
-| **Windows 패키징** | `lmc/setup/win32/setup.nsi`, `setup.bat`, `zip.ps1` | `ProductVersion`을 `"1.3.0"`, `InstallerVersion`을 `"1.3.0.0"`으로 업데이트 |
-| **문서 및 테스트** | `README.md`, `tests/unit/tst_crypto.cpp`, `tests/data/crypto/README.md` | `v1.2.39` 기반 `v1.3.0` 아키텍처 명세 및 테스트 주석 동기화 |
+| `/VERSION` | 프로젝트 버전 | `1.4.0.0` |
+| `CMakeLists.txt` | project version | `1.4.0.0` |
+| `lmc/CMakeLists.txt` | LMC_VERSION | `1.4.0.0` |
+| `lmc/src/core/definitions.h` | IDA_VERSION | `1.4.0.0` |
+| `lmc/src/app/lmcwin32.rc` | FILEVERSION / PRODUCTVERSION | `1,4,0,0` / `"1.4.0.0"` |
+| `lmc/setup/win32/setup.nsi` | ProductVersion / InstallerVersion | `1.4.0.0` |
+| `LANMessenger.pro` | IDA_VERSION | `1.4.0.0` |
+| `.github/workflows/windows-release.yml` | 릴리스 태그 | `v1.4.0.0` |
 
 ---
 
-## 2. `v1.2.39` 대비 `v1.3.0`의 2대 핵심 추가 기능
+## 3. 빌드 및 테스트 확인
 
-### ① OpenSSL 3.0 ↔ OpenSSL 1.0 구버전 호환성 아키텍처 (`lmc/src/core/crypto.*`)
-- **`Legacy v1.0` 모드(기본값)**:
-  - PKCS#1 `"type-specific"` 헤더(`-----BEGIN RSA PUBLIC KEY-----`)와 `SHA-1` OAEP 패딩, 표준 6바이트 헤더(`BRDCST`, `PUBKEY`, `HNDSHK`, `MESSAG`)를 사용합니다.
-  - 구버전(`v1.2.39` 이하, OpenSSL 1.0) 클라이언트가 `PEM_read_bio_RSAPublicKey()` 호출 시 강제 종료(Crash)되지 않고 완벽히 통신합니다.
-- **`Strict v3.0` 모드**:
-  - X.509 SPKI 헤더(`-----BEGIN PUBLIC KEY-----`), `SHA-256` OAEP 패딩, `v3.0` 프레임 헤더(`BRDv30`, `PUBKv3`, `HNDv30`, `MSGv30`)를 사용합니다.
-  - 채팅창 우측 상단 툴바에서 언제든 **`Legacy v1.0` ↔ `Strict v3.0`** 토글이 가능합니다.
-
-### ② 원격 데스크톱 제어 기능 (`lmc/src/remote/`)
-- **`RemoteServer` (`remoteserver.cpp`)**: 화면 캡처 및 JPEG 프레임 스트리밍, 원격 마우스 이동/클릭/휠 및 키보드 이벤트 주입
-- **`RemoteClient` (`remoteclient.cpp`)**: TCP 소켓을 통한 실시간 원격 화면 프레임 수신 및 마우스/키보드 제어 패킷 송신
-- **`RemoteViewerWindow` (`remoteviewerwindow.cpp`)**: `Enable Control`(원격 제어 허용), `Fit to Window`(창 크기 맞춤), `Disconnect`(연결 종료) 기능을 갖춘 전용 뷰어 윈도우
-
----
-
-## 3. 내 PC 작업 환경 (Ubuntu 26.04.1 LTS / Qt Creator 18.0.2 / Qt 6.10.2 / GCC 15.2.0)
-
-```bash
-# 로컬 PC에서 최신 변경사항 받기
-git pull
-
-# 터미널에서 CMake 빌드 및 유닛 테스트 실행 시
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLMC_BUILD_TESTS=ON
-cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure -V
-```
-- **Qt Creator 18.0.2**에서는 루트의 `CMakeLists.txt`와 `/.qtcreator/CMakeLists.txt.user`가 그대로 유지되므로 별도 마이그레이션 없이 즉시 열리고 **`v1.3.0`**으로 빌드됩니다.
+- **C++ Qt 빌드 파일 등록**: `lmc/CMakeLists.txt`와 `LANMessenger.pro`에 `capturewindow.cpp`, `capturedefinitions.h`, `capturewindow.h` 등록 완료
+- **웹 앱 빌드 & 린트**: TypeScript 컴파일 성공 (`tsc --noEmit`), Lint 오류 0건
+- **유닛 테스트**: 단축키 충돌 방지 및 파일명 생성 등 14개 테스트 전체 통과 (14/14 Passing)

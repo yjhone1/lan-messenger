@@ -27,6 +27,7 @@ import {
 interface KalmuriCaptureProps {
   isOpen: boolean;
   onClose: () => void;
+  onReopen?: () => void;
   onSendToChat?: (item: CapturedItem) => void;
   activeChatPeerName?: string;
 }
@@ -34,6 +35,7 @@ interface KalmuriCaptureProps {
 export function KalmuriCapture({
   isOpen,
   onClose,
+  onReopen,
   onSendToChat,
   activeChatPeerName,
 }: KalmuriCaptureProps) {
@@ -94,6 +96,14 @@ export function KalmuriCapture({
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Visual capture feedback
+  const [cameraFlash, setCameraFlash] = useState(false);
+  const [captureToast, setCaptureToast] = useState<{
+    message: string;
+    fileName: string;
+    dataUrl?: string;
+  } | null>(null);
 
   // Area frame window state (for 'area' capture)
   const [areaFrame, setAreaFrame] = useState({
@@ -362,6 +372,18 @@ export function KalmuriCapture({
 
       setCapturedItems((prev) => [newItem, ...prev]);
 
+      // Trigger shutter flash
+      setCameraFlash(true);
+      setTimeout(() => setCameraFlash(false), 200);
+
+      // Trigger high-visibility toast
+      setCaptureToast({
+        message: `${newItem.fileName} (${newItem.width}x${newItem.height}) 캡처 완료!`,
+        fileName: newItem.fileName,
+        dataUrl: newItem.dataUrl,
+      });
+      setTimeout(() => setCaptureToast(null), 4500);
+
       // Post sound
       if (settings.captureSound === 'post') {
         playShutterSound();
@@ -501,11 +523,96 @@ export function KalmuriCapture({
   const areaColorCfg = AREA_COLOR_MAP[settings.areaColor] || AREA_COLOR_MAP.blue;
 
   if (!isOpen) {
-    return null;
+    return (
+      <>
+        {cameraFlash && (
+          <div className="fixed inset-0 z-[100] bg-white opacity-70 pointer-events-none transition-opacity duration-200" />
+        )}
+        {captureToast && (
+          <div className="fixed top-5 right-5 z-[99] bg-slate-900/95 text-white border-2 border-emerald-400 rounded-lg shadow-2xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200 select-none max-w-sm">
+            {captureToast.dataUrl && (
+              <img
+                src={captureToast.dataUrl}
+                alt="preview"
+                className="w-12 h-12 object-cover rounded border border-slate-700 shrink-0"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
+                <span>📸</span>
+                <span>화면 캡처 완료</span>
+              </div>
+              <div className="text-[11px] text-slate-200 truncate font-mono mt-0.5">
+                {captureToast.fileName}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                저장 폴더에 보관됨 • 클립보드 복사됨
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onReopen?.();
+                setShowFolderModal(true);
+              }}
+              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-medium shrink-0 cursor-pointer"
+            >
+              폴더열기
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => onReopen?.()}
+          className="fixed bottom-3 right-4 z-40 bg-gradient-to-r from-blue-700 to-indigo-800 text-white text-xs px-3.5 py-1.5 rounded-full shadow-2xl border border-blue-400/60 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95 transition-all select-none"
+          title="오픈소스캡쳐 도구가 백그라운드(트레이)에서 대기 중입니다. 클릭하면 창이 다시 열립니다."
+        >
+          <span className="text-base">📸</span>
+          <span className="font-bold">오픈소스캡쳐 대기중</span>
+          <span className="text-[11px] bg-blue-900/60 px-1.5 py-0.5 rounded text-blue-200">
+            단축키: PrintScreen / F11
+          </span>
+        </button>
+      </>
+    );
   }
 
   return (
     <>
+      {cameraFlash && (
+        <div className="fixed inset-0 z-[100] bg-white opacity-70 pointer-events-none transition-opacity duration-200" />
+      )}
+      {captureToast && (
+        <div className="fixed top-5 right-5 z-[99] bg-slate-900/95 text-white border-2 border-emerald-400 rounded-lg shadow-2xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200 select-none max-w-sm">
+          {captureToast.dataUrl && (
+            <img
+              src={captureToast.dataUrl}
+              alt="preview"
+              className="w-12 h-12 object-cover rounded border border-slate-700 shrink-0"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
+              <span>📸</span>
+              <span>화면 캡처 완료</span>
+            </div>
+            <div className="text-[11px] text-slate-200 truncate font-mono mt-0.5">
+              {captureToast.fileName}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              저장 폴더에 보관됨 • 클립보드 복사됨
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowFolderModal(true)}
+            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-medium shrink-0 cursor-pointer"
+          >
+            폴더열기
+          </button>
+        </div>
+      )}
+
       {/* ================= 1. KALMURI MAIN COMPACT FLOATING BAR ================= */}
       <div
         data-kalmuri-tool="true"
@@ -562,7 +669,7 @@ export function KalmuriCapture({
         >
           <div className="flex items-center gap-1.5 font-bold tracking-tight text-[11px]">
             <span>📸</span>
-            <span>칼무리 (Kalmuri)</span>
+            <span>오픈소스캡쳐</span>
             <span className="text-[10px] opacity-80 font-normal">v1.4.0.0</span>
           </div>
 
@@ -1288,7 +1395,7 @@ export function KalmuriCapture({
             <div className="h-7 px-3 bg-gradient-to-r from-[#0054e3] to-[#0046c7] text-white flex items-center justify-between font-bold text-xs">
               <div className="flex items-center gap-1.5">
                 <span>📁</span>
-                <span>칼무리 저장 폴더 — {settings.saveFolder}</span>
+                <span>오픈소스캡쳐 저장 폴더 — {settings.saveFolder}</span>
               </div>
               <button
                 type="button"
@@ -1650,7 +1757,7 @@ function KalmuriSettingsModal({
       <div className="w-full max-w-lg bg-[#ece9d8] border-2 border-[#0054e3] rounded-t-md shadow-2xl flex flex-col text-xs font-sans">
         {/* Title Bar */}
         <div className="h-7 px-3 bg-gradient-to-r from-[#0054e3] to-[#0046c7] text-white flex items-center justify-between font-bold">
-          <span>⚙️ 환경설정 — 칼무리 (Kalmuri)</span>
+          <span>⚙️ 환경설정 — 오픈소스캡쳐</span>
           <button
             type="button"
             onClick={onClose}
@@ -1808,7 +1915,7 @@ function KalmuriSettingsModal({
                   checked={draft.startOnBoot}
                   onChange={(e) => setDraft({ ...draft, startOnBoot: e.target.checked })}
                 />
-                <span>Windows 부팅 시 칼무리 자동 실행 (트레이 대기)</span>
+                <span>Windows 부팅 시 오픈소스캡쳐 자동 실행 (트레이 대기)</span>
               </label>
             </div>
           )}
@@ -1966,7 +2073,7 @@ function KalmuriSettingsModal({
                 <span className="text-3xl">📸</span>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    칼무리 (Kalmuri) v1.4.0.0
+                    오픈소스캡쳐 v1.4.0.0
                   </h3>
                   <p className="text-gray-500 text-xs">
                     단축키 한 번으로 화면 캡처 및 화면 녹화
@@ -1975,9 +2082,8 @@ function KalmuriSettingsModal({
               </div>
 
               <div className="text-xs space-y-1 text-gray-700">
-                <p><b>만든이:</b> 오길호 (Kilho Oh)</p>
-                <p><b>홈페이지:</b> <a href="https://kalmuri.kilho.net" target="_blank" rel="noreferrer" className="text-blue-600 underline">https://kalmuri.kilho.net</a></p>
-                <p><b>라이선스:</b> 프리웨어 (개인/기업 누구나 무료)</p>
+                <p><b>구분:</b> 오픈소스 화면 캡처 & 화면 녹화 도구</p>
+                <p><b>라이선스:</b> 오픈소스 (개인/기업 누구나 무료)</p>
                 <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.0 완벽 통합 및 단축키 충돌 방지</p>
               </div>
 
@@ -1985,7 +2091,7 @@ function KalmuriSettingsModal({
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm('모든 칼무리 설정을 초기값으로 되돌리시겠습니까?')) {
+                    if (confirm('모든 오픈소스캡쳐 설정을 초기값으로 되돌리시겠습니까?')) {
                       setDraft({ ...DEFAULT_KALMURI_SETTINGS });
                     }
                   }}

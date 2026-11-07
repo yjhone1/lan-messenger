@@ -26,6 +26,7 @@ SOURCES += \
     lmc/src/app/main.cpp \
     lmc/src/app/apprunner.cpp \
     lmc/src/app/lmc.cpp \
+    lmc/src/capture/capturewindow.cpp \
     lmc/src/core/crypto.cpp \
     lmc/src/core/lmcstrings.cpp \
     lmc/src/core/settings.cpp \
@@ -93,6 +94,8 @@ HEADERS += \
     lmc/src/gui/chat/chathelper.h \
     lmc/src/gui/chat/chatroomwindow.h \
     lmc/src/gui/chat/chatwindow.h \
+    lmc/src/capture/capturedefinitions.h \
+    lmc/src/capture/capturewindow.h \
     lmc/src/gui/chat/messagelog.h \
     lmc/src/gui/contacts/userinfowindow.h \
     lmc/src/gui/contacts/userselectdialog.h \

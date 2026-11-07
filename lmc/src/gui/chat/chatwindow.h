@@ -88,6 +88,7 @@ private slots:
   void btnFolder_clicked(void);
   void btnRemote_clicked(void);
   void btnSave_clicked(void);
+  void btnCapture_clicked(void);
   void btnHistory_clicked(void);
   void btnTransfers_clicked(void);
   void btnProtocolMode_clicked(void);
@@ -132,6 +133,7 @@ private:
   QAction* pFolderAction;
   QAction* pRemoteAction;
   QAction* pSaveAction;
+  QAction* pCaptureAction;
   QToolBar* pRightBar;
   QAction* pHistoryAction;
   QAction* pTransferAction;

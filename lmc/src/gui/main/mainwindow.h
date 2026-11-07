@@ -124,6 +124,7 @@ private slots:
   void userInfoAction_triggered(void);
   void txtNote_returnPressed(void);
   void txtNote_lostFocus(void);
+  void captureAction_triggered(void);
 
 private:
   void createMainMenu(void);
@@ -210,6 +211,9 @@ private:
   QAction* userRemoteAction;
   QAction* userInfoAction;
   QAction* avatarBrowseAction;
+  QAction* captureAction;
+  QAction* trayCaptureAction;
+  QAction* toolCaptureAction;
   bool windowLoaded;
 };
 

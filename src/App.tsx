@@ -542,6 +542,31 @@ export function App() {
     setWireLogs(initialWire.reverse());
   }, [localUser.id]);
 
+  // Global window-level shortcut handler for Kalmuri Screen Capture
+  useEffect(() => {
+    const handleGlobalCaptureKey = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      const isInput = activeTag === 'input' || activeTag === 'textarea';
+
+      // PrintScreen or F11 or Ctrl+Shift+S (browser safe)
+      if (
+        e.key === 'PrintScreen' ||
+        (!isInput && e.key === 'F11') ||
+        (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's')
+      ) {
+        e.preventDefault();
+        setShowKalmuriCapture(true);
+        triggerTrayBalloon(
+          '오픈소스캡쳐 실행',
+          '단축키가 감지되어 오픈소스캡쳐 도구가 활성화되었습니다. (PrintScreen / F11)'
+        );
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalCaptureKey);
+    return () => window.removeEventListener('keydown', handleGlobalCaptureKey);
+  }, []);
+
   // Progress active file transfers
   useEffect(() => {
     const active = transfers.some((t) => t.status === 'transferring');
@@ -2076,6 +2101,7 @@ export function App() {
       <KalmuriCapture
         isOpen={showKalmuriCapture}
         onClose={() => setShowKalmuriCapture(false)}
+        onReopen={() => setShowKalmuriCapture(true)}
         onSendToChat={handleSendCaptureToChat}
         activeChatPeerName={activePeer?.name}
       />

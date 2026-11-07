@@ -27,6 +27,7 @@
 #include <QMimeData>
 #include "chatwindow.h"
 #include "gui/widgets/actionhelper.h"
+#include "capture/capturewindow.h"
 
 const qint64 pauseTime = 5000;
 
@@ -457,6 +458,20 @@ void lmcChatWindow::btnSave_clicked(void) {
   }
 }
 
+void lmcChatWindow::btnCapture_clicked(void) {
+  lmcCaptureWindow* pWnd = lmcCaptureWindow::instance();
+  connect(pWnd, &lmcCaptureWindow::imageCaptured, this, [this](const QString& filePath) {
+    if (QFile::exists(filePath)) {
+      QString path = filePath;
+      sendFile(&path);
+    }
+  }, Qt::UniqueConnection);
+
+  pWnd->show();
+  pWnd->raise();
+  pWnd->activateWindow();
+}
+
 void lmcChatWindow::btnHistory_clicked(void) {
   emit showHistory();
 }
@@ -557,6 +572,10 @@ void lmcChatWindow::createToolBar(void) {
 
   pRemoteAction = ActionHelper::createAction(pLeftBar, "Remote &Desktop...", this, &lmcChatWindow::btnRemote_clicked,
                                              QIcon(QPixmap(IDR_NETWORKSET, "PNG")));
+  pCaptureAction = ActionHelper::createAction(pLeftBar, "Screen &Capture (OpenSourceCapture)...", this,
+                                              &lmcChatWindow::btnCapture_clicked,
+                                              QIcon(QPixmap(IDR_TOOLS, "PNG")),
+                                              QKeySequence(Qt::Key_Print));
 
   pLeftBar->addSeparator();
 
@@ -597,6 +616,8 @@ void lmcChatWindow::setUIText(void) {
   pFileAction->setText(tr("Send A &File..."));
   pFolderAction->setText(tr("Send A Fol&der..."));
   pRemoteAction->setText(tr("Remote &Desktop..."));
+  pCaptureAction->setText(tr("Screen &Capture (OpenSourceCapture)..."));
+  pCaptureAction->setToolTip(tr("Screen Capture (OpenSourceCapture)"));
   pSaveAction->setText(tr("&Save As..."));
   pHistoryAction->setText(tr("&History"));
   pTransferAction->setText(tr("File &Transfers"));

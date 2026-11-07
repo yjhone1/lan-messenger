@@ -161,7 +161,7 @@ export function validateCaptureShortcut(candidateKey: string): {
  * Safe, recommended capture shortcuts that never clash with LAN Messenger.
  */
 export const RECOMMENDED_CAPTURE_SHORTCUTS = [
-  { key: 'PrintScreen', label: 'PrintScreen (칼무리 기본값)' },
+  { key: 'PrintScreen', label: 'PrintScreen (오픈소스캡쳐 기본값)' },
   { key: 'F11', label: 'F11 (웹 브라우저 추천)' },
   { key: 'F12', label: 'F12' },
   { key: 'F9', label: 'F9' },
