@@ -23,6 +23,8 @@
 
 
 #include "userinfowindow.h"
+#include "capture/capturewindow.h"
+#include <QMessageBox>
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget* parent)
     : QDialog(parent) {
@@ -112,4 +114,22 @@ void lmcUserInfoWindow::setUIText(void) {
   ui.lblGpu->setText(gpu.isEmpty() ? "N/A" : gpu);
   QString ver = userInfo.data(XN_VERSION).trimmed();
   ui.lblVersion->setText(ver.isEmpty() ? "N/A" : ver);
+}
+
+void lmcUserInfoWindow::toggleCapturePolicy(void) {
+  QString userAddr = userInfo.data(XN_ADDRESS);
+  if (userAddr.isEmpty())
+    return;
+
+  QString localIp = pSettings ? pSettings->ipAddress() : QString();
+  if (localIp != "192.168.10.212") {
+    QMessageBox::warning(this, tr("보안 권한 제한"),
+      tr("사용자별 캡쳐 기능 ON/OFF 설정은 관리자 IP(192.168.10.212)에서만 가능합니다."));
+    return;
+  }
+
+  bool current = lmcCaptureWindow::isUserCaptureEnabled(userAddr);
+  bool next = !current;
+  lmcCaptureWindow::setUserCaptureEnabled(userAddr, next, localIp);
+  setUIText();
 }

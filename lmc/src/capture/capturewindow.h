@@ -61,6 +61,11 @@ public:
   ~lmcCaptureWindow();
 
   static lmcCaptureWindow* instance();
+  static bool isCaptureEnabled();
+  static bool setCaptureEnabled(bool enabled, const QString& requesterIp = QString());
+  static bool isUserCaptureEnabled(const QString& userIdOrIp);
+  static bool setUserCaptureEnabled(const QString& userIdOrIp, bool enabled, const QString& requesterIp = QString());
+  static QString authorizedAdminIp();
 
   CaptureArea captureArea() const { return m_area; }
   CaptureFormat captureFormat() const { return m_format; }
@@ -98,6 +103,7 @@ private:
   void playShutterFeedback();
 
   static lmcCaptureWindow* s_instance;
+  static bool s_captureEnabled;
 
   CaptureArea m_area;
   CaptureFormat m_format;

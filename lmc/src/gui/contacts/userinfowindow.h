@@ -43,6 +43,9 @@ public:
   void setInfo(XmlMessage* pMessage);
   void settingsChanged(void);
 
+public slots:
+  void toggleCapturePolicy(void);
+
 protected:
   void changeEvent(QEvent* pEvent);
 

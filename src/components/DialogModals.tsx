@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   APP_VERSION,
   AppUiTheme,
+  AUTHORIZED_ADMIN_IP,
   ChatMessage,
   FileTransferItem,
   Group,
@@ -30,6 +31,7 @@ import {
   saveAppThemeToStorage,
   SupportedLanguage,
 } from '../utils/i18n';
+import { canConfigureUserCapturePolicy } from '../utils/securityPolicy';
 
 // Shared Classic / Dark / High-Contrast Window Frame wrapper
 const WindowFrame: React.FC<{
@@ -574,12 +576,21 @@ export const HistoryWindowModal: React.FC<{
 // 5. User Info Window (lmcUserInfoWindow)
 export const UserInfoWindowModal: React.FC<{
   user: User;
+  currentIp?: string;
   language?: string;
+  onToggleUserCapturePolicy?: (targetUser: User, nextState: boolean) => void;
   onClose: () => void;
-}> = ({ user, language = 'en_US', onClose }) => {
+}> = ({
+  user,
+  currentIp = '192.168.1.42',
+  language = 'en_US',
+  onToggleUserCapturePolicy,
+  onClose,
+}) => {
   const [tab, setTab] = useState<'general' | 'system'>('general');
   const st = STATUS_LIST.find((s) => s.code === user.status) || STATUS_LIST[0];
   const i18n = getLabels(language);
+  const canConfigure = canConfigureUserCapturePolicy(currentIp);
 
   return (
     <WindowFrame
@@ -738,6 +749,69 @@ export const UserInfoWindowModal: React.FC<{
                 {user.publicKeyPem}
               </pre>
             </div>
+
+            {/* OpenSourceCapture User-Specific ON/OFF Control (192.168.10.212 only) */}
+            <div className="pt-2.5 border-t border-gray-200" data-testid="user-info-capture-policy-section">
+              <div className="bg-slate-50 border border-slate-300 rounded p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
+                    <img src="/resources/images/kalmuri.png" alt="" className="w-4 h-4" />
+                    <span>오픈소스캡쳐 기능 설정 ({user.name})</span>
+                  </div>
+                  {/* Status Badge */}
+                  <span
+                    data-testid="userinfo-capture-status-badge"
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                      user.captureEnabled !== false
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                    }`}
+                  >
+                    {user.captureEnabled !== false ? '● 캡쳐 사용 허용 (ON)' : '■ 캡쳐 사용 차단 (OFF)'}
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-slate-600 leading-relaxed">
+                  이 사용자가 오픈소스캡쳐 및 단축키(PrintScreen, F11)를 사용할 수 있는지 여부를 개별 설정합니다.
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200">
+                  <div className="text-[11px]">
+                    {canConfigure ? (
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                        관리자 권한 확인됨 ({currentIp})
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 font-semibold flex items-center gap-1">
+                        <span>🔒</span>
+                        관리자(192.168.10.212)에서만 설정 가능 (현재: {currentIp})
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    data-testid="btn-toggle-user-capture"
+                    disabled={!canConfigure}
+                    onClick={() => {
+                      if (!canConfigure) return;
+                      const nextState = user.captureEnabled === false ? true : false;
+                      onToggleUserCapturePolicy?.(user, nextState);
+                    }}
+                    className={`px-3 py-1 rounded text-xs font-bold border transition-colors cursor-pointer ${
+                      !canConfigure
+                        ? 'opacity-40 cursor-not-allowed bg-gray-200 text-gray-500 border-gray-300'
+                        : user.captureEnabled !== false
+                        ? 'bg-[#e04343] hover:bg-[#f05454] text-white border-red-700'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-800'
+                    }`}
+                  >
+                    {user.captureEnabled !== false ? '캡쳐 기능 차단(OFF)하기' : '캡쳐 기능 허용(ON)하기'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -876,6 +950,21 @@ export const RemoteViewerWindowModal: React.FC<{
       widthClass="max-w-3xl w-full"
     >
       <div className="flex flex-col h-[460px]">
+        {/* Security & Authorization Banner */}
+        <div className="px-3 py-1 bg-[#1e293b] text-white border-b border-[#334155] flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-bold text-sky-400">원격 제어 세션 (정상 인가됨)</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-slate-300">요청자 IP: <b className="text-emerald-400">192.168.10.212</b> (인가된 관리자)</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-slate-300">원격 대상: <b className="text-white">{peer.name} ({peer.address})</b></span>
+          </div>
+          <span className="text-[11px] text-amber-300 font-medium">
+            보안 정책: 192.168.10.212 전용
+          </span>
+        </div>
+
         {/* Toolbar matching RemoteViewerWindow::RemoteViewerWindow */}
         <div className="px-3 py-1.5 bg-[#f5f4ee] border-b border-[#aca899] flex items-center justify-between text-xs">
           <div className="flex items-center gap-4">
@@ -1220,6 +1309,7 @@ export const SettingsDialogModal: React.FC<{
     { key: 'fileTransfer', name: i18n.preferences.categories.fileTransfer, icon: '/resources/images/transfersettings.png' },
     { key: 'theme', name: i18n.preferences.categories.theme, icon: '/resources/images/themesettings.png' },
     { key: 'hotkeys', name: i18n.preferences.categories.hotkeys, icon: '/resources/images/hotkeysettings.png' },
+    { key: 'security', name: activeLang === 'ko_KR' ? '보안 및 권한 정책' : 'Security & Policy', icon: '/resources/images/tools.png' },
   ];
 
   // Sample messages for Theme live preview (matching lmcSettingsDialog::cboTheme_currentIndexChanged)
@@ -1976,6 +2066,125 @@ export const SettingsDialogModal: React.FC<{
                 </fieldset>
               </div>
             )}
+
+            {/* 9: Security & Permission Policy */}
+            {categoryIdx === 9 && (
+              <div className="space-y-4 text-xs text-slate-800">
+                {/* Section 1: Remote Desktop Request Authorization */}
+                <fieldset className="border border-gray-300 p-3 rounded space-y-2.5 bg-white">
+                  <legend className="font-bold px-1 text-slate-800 flex items-center gap-1.5">
+                    <span>🖥️</span>
+                    <span>원격 데스크톱 제어 요청 권한 (Remote Desktop Permission)</span>
+                  </legend>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-700">원격 요청 인가 관리자 IP:</span>
+                      <span className="font-mono font-bold text-blue-700 text-sm bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        {draft.authorizedRemoteIp || '192.168.10.212'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">현재 클라이언트 IP:</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        {localUser.address}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-200">
+                      <span className="text-gray-600">원격 요청 허용 상태:</span>
+                      {localUser.address === (draft.authorizedRemoteIp || '192.168.10.212') ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+                          <span>✅</span>
+                          <span>인가됨 (원격 요청 가능)</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-300">
+                          <span>❌</span>
+                          <span>차단됨 (192.168.10.212 전용)</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    ※ 보안 규정에 따라 <b>192.168.10.212</b> IP에서만 다른 피어로 원격 데스크톱 연결을 요청할 수 있으며, 타 IP에서의 원격 제어 요청 시도는 즉시 거절됩니다.
+                  </p>
+                </fieldset>
+
+                {/* Section 2: OpenSourceCapture Usage Policy (ON/OFF) */}
+                <fieldset className="border border-gray-300 p-3 rounded space-y-2.5 bg-white">
+                  <legend className="font-bold px-1 text-slate-800 flex items-center gap-1.5">
+                    <span>📸</span>
+                    <span>오픈소스캡쳐(Kalmuri) 사용 정책 (On/Off Control)</span>
+                  </legend>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-700">오픈소스캡쳐 기능 상태:</span>
+                      <span className={`px-2.5 py-0.5 rounded font-bold text-xs border ${
+                        draft.captureFeatureEnabled
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border-rose-300'
+                      }`}>
+                        {draft.captureFeatureEnabled ? '사용 허용 (ON)' : '사용 차단 (OFF)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">ON/OFF 설정 권한:</span>
+                      {localUser.address === (draft.authorizedRemoteIp || '192.168.10.212') ? (
+                        <span className="font-bold text-blue-700">
+                          관리자 권한 보유 (변경 가능)
+                        </span>
+                      ) : (
+                        <span className="font-bold text-gray-500">
+                          권한 없음 (192.168.10.212에서만 변경 가능)
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Toggle Button */}
+                    <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+                      <div className="text-[11px] text-gray-600">
+                        {localUser.address === (draft.authorizedRemoteIp || '192.168.10.212')
+                          ? '관리자 계정으로 오픈소스캡쳐 사용 허용/차단을 토글할 수 있습니다.'
+                          : '현재 IP에서는 오픈소스캡쳐 ON/OFF 설정을 변경할 수 없습니다.'}
+                      </div>
+
+                      {localUser.address === (draft.authorizedRemoteIp || '192.168.10.212') ? (
+                        <button
+                          type="button"
+                          onClick={() => setDraft({ ...draft, captureFeatureEnabled: !draft.captureFeatureEnabled })}
+                          className={`px-3 py-1 font-bold rounded shadow-xs cursor-pointer text-white text-xs ${
+                            draft.captureFeatureEnabled
+                              ? 'bg-rose-600 hover:bg-rose-700'
+                              : 'bg-emerald-600 hover:bg-emerald-700'
+                          }`}
+                        >
+                          {draft.captureFeatureEnabled ? '사용 차단(OFF)으로 변경' : '사용 허용(ON)으로 변경'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="px-3 py-1 font-bold rounded bg-gray-300 text-gray-500 text-xs cursor-not-allowed flex items-center gap-1"
+                          title="192.168.10.212에서만 변경할 수 있습니다."
+                        >
+                          <span>🔒</span>
+                          <span>설정 잠김 (권한 없음)</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    ※ 오픈소스캡쳐 기능 On/Off는 <b>192.168.10.212</b>에서만 변경할 수 있으며, 사용 차단(OFF) 시 모든 사용자의 화면 캡쳐 실행이 차단됩니다.
+                  </p>
+                </fieldset>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2293,5 +2502,91 @@ export const UpdateWindowModal: React.FC<{
         </div>
       </div>
     </WindowFrame>
+  );
+};
+
+// 11. Security & Permission Alert Dialog (for unauthorized remote or capture attempts)
+export const SecurityAlertModal: React.FC<{
+  title: string;
+  message: string;
+  currentIp: string;
+  requiredIp: string;
+  onClose: () => void;
+  onSwitchToAdminIp?: () => void;
+}> = ({ title, message, currentIp, requiredIp, onClose, onSwitchToAdminIp }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+      <div className="w-full max-w-md bg-[#ece9d8] border-2 border-[#0054e3] rounded-t shadow-2xl font-sans text-xs select-none">
+        {/* Title bar */}
+        <div className="bg-gradient-to-r from-[#0054e3] via-[#2673f2] to-[#0046c7] text-white px-3 py-1.5 flex items-center justify-between font-bold shadow-xs">
+          <div className="flex items-center gap-1.5">
+            <span>🛡️</span>
+            <span>{title}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-4 h-4 bg-[#e04343] hover:bg-[#f05454] text-white rounded-xs flex items-center justify-center font-bold text-[10px] cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-3 bg-[#f5f4ee]">
+          <div className="flex items-start gap-3">
+            <span className="text-3xl shrink-0">⚠️</span>
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
+              <p className="text-slate-700 whitespace-pre-line leading-relaxed">
+                {message}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-300 rounded p-2.5 text-xs space-y-1.5 text-slate-700 shadow-inner">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 font-medium">필요 인가 IP:</span>
+              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                {requiredIp}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 font-medium">현재 접속 IP:</span>
+              <span className="font-mono font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                {currentIp}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-200">
+              <span>권한 검증 결과:</span>
+              <span className="font-bold text-rose-600">접근 거부 (차단)</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-300">
+            {onSwitchToAdminIp && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSwitchToAdminIp();
+                  onClose();
+                }}
+                className="px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold rounded-xs cursor-pointer shadow-xs flex items-center gap-1"
+              >
+                <span>🛡️</span>
+                <span>관리자 IP(192.168.10.212)로 전환</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] font-semibold text-slate-800 rounded-xs cursor-pointer"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };

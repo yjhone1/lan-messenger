@@ -50,12 +50,59 @@
 #include <QCursor>
 
 lmcCaptureWindow* lmcCaptureWindow::s_instance = nullptr;
+bool lmcCaptureWindow::s_captureEnabled = true;
 
 lmcCaptureWindow* lmcCaptureWindow::instance() {
   if (!s_instance) {
     s_instance = new lmcCaptureWindow();
   }
   return s_instance;
+}
+
+bool lmcCaptureWindow::isCaptureEnabled() {
+  return s_captureEnabled;
+}
+
+bool lmcCaptureWindow::setCaptureEnabled(bool enabled, const QString& requesterIp) {
+  QString norm = requesterIp.trimmed();
+  if (norm.startsWith("::ffff:")) {
+    norm = norm.mid(7);
+  }
+  if (!norm.isEmpty() && norm != "192.168.10.212" && norm != "127.0.0.1") {
+    return false; // Unauthorized
+  }
+  s_captureEnabled = enabled;
+  return true;
+}
+
+static QMap<QString, bool> s_userCaptureEnabledMap;
+
+bool lmcCaptureWindow::isUserCaptureEnabled(const QString& userIdOrIp) {
+  if (!s_captureEnabled) {
+    return false;
+  }
+  if (userIdOrIp.isEmpty()) {
+    return true;
+  }
+  return s_userCaptureEnabledMap.value(userIdOrIp, true);
+}
+
+bool lmcCaptureWindow::setUserCaptureEnabled(const QString& userIdOrIp, bool enabled, const QString& requesterIp) {
+  QString norm = requesterIp.trimmed();
+  if (norm.startsWith("::ffff:")) {
+    norm = norm.mid(7);
+  }
+  if (!norm.isEmpty() && norm != "192.168.10.212" && norm != "127.0.0.1") {
+    return false; // Unauthorized: only 192.168.10.212 can toggle user capture
+  }
+  if (!userIdOrIp.isEmpty()) {
+    s_userCaptureEnabledMap[userIdOrIp] = enabled;
+  }
+  return true;
+}
+
+QString lmcCaptureWindow::authorizedAdminIp() {
+  return QStringLiteral("192.168.10.212");
 }
 
 lmcCaptureWindow::lmcCaptureWindow(QWidget* parent)
@@ -212,6 +259,12 @@ void lmcCaptureWindow::onCaptureButtonClicked() {
 }
 
 void lmcCaptureWindow::triggerCapture() {
+  if (!s_captureEnabled) {
+    QMessageBox::warning(this, tr("OpenSourceCapture (오픈소스캡쳐)"),
+      tr("오픈소스캡쳐 사용 불가: 관리자(192.168.10.212)에 의해 오픈소스캡쳐 기능이 비활성화(차단)되어 있습니다."));
+    return;
+  }
+
   // Hide main floating bar briefly if capturing full screen or active window
   if (m_area == CA_FullScreen || m_area == CA_ActiveWindow) {
     hide();

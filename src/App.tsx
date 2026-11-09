@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   APP_VERSION,
+  AUTHORIZED_ADMIN_IP,
   AVATAR_LIST,
   ChatMessage,
   ChatStateType,
@@ -36,11 +37,19 @@ import {
   CryptoInspectorModal,
   HistoryWindowModal,
   RemoteViewerWindowModal,
+  SecurityAlertModal,
   SettingsDialogModal,
   TransferWindowModal,
   UpdateWindowModal,
   UserInfoWindowModal,
 } from './components/DialogModals';
+import {
+  validateRemoteDesktopRequest,
+  evaluateCapturePolicyChange,
+  evaluateCaptureUsage,
+  evaluateUserCapturePolicyChange,
+  evaluateUserCaptureUsage,
+} from './utils/securityPolicy';
 import {
   getAppThemeConfig,
   getLabels,
@@ -107,6 +116,8 @@ const DEFAULT_SETTINGS: LmcSettings = {
   userListView: 'Detailed',
   showStatusTooltip: true,
   sendKeyModCtrlEnter: false,
+  authorizedRemoteIp: '192.168.10.212',
+  captureFeatureEnabled: true,
 };
 
 const INITIAL_PEERS: User[] = [
@@ -308,6 +319,128 @@ export function App() {
   const [inspectingUser, setInspectingUser] = useState<User | null>(null);
   const [remoteDesktopPeer, setRemoteDesktopPeer] = useState<User | null>(null);
   const [showKalmuriCapture, setShowKalmuriCapture] = useState(true);
+
+  // Security alert modal state for unauthorized remote or capture requests
+  const [securityAlert, setSecurityAlert] = useState<{
+    title: string;
+    message: string;
+    currentIp: string;
+    requiredIp: string;
+  } | null>(null);
+
+  // Fast switch local IP between normal (192.168.1.42) and administrator (192.168.10.212)
+  const handleSwitchLocalIp = (nextIp: string) => {
+    setLocalUser((prev) => ({
+      ...prev,
+      address: nextIp,
+      id: `LOCAL-NODE-${nextIp.replace(/\./g, '-')}`,
+      about:
+        nextIp === AUTHORIZED_ADMIN_IP
+          ? 'Authorized Administrator — 192.168.10.212 (Remote & Capture Policy Admin)'
+          : 'Systems Engineer — OpenSSL 3.0.13 / Qt 6.6 workstation',
+    }));
+    triggerTrayBalloon(
+      '로컬 IP 및 권한 전환',
+      `현재 클라이언트 IP가 ${nextIp} (${nextIp === AUTHORIZED_ADMIN_IP ? '관리자 권한 보유' : '일반 권한'})로 변경되었습니다.`
+    );
+  };
+
+  // Safe Remote Desktop request initiator enforcing 192.168.10.212
+  const handleRequestRemoteDesktop = (target: User) => {
+    const check = validateRemoteDesktopRequest(localUser.address, target.name);
+    if (!check.allowed) {
+      setSecurityAlert({
+        title: '원격 제어 요청 불가 (보안 권한 제한)',
+        message: check.message,
+        currentIp: check.currentIp,
+        requiredIp: check.requiredIp,
+      });
+      return;
+    }
+    setRemoteDesktopPeer(target);
+  };
+
+  // Safe OpenSourceCapture opener checking admin policy (global and user-specific)
+  const handleOpenCapture = () => {
+    const check = evaluateUserCaptureUsage(localUser, settings.captureFeatureEnabled);
+    if (!check.canUse) {
+      setSecurityAlert({
+        title: check.userSpecific
+          ? '오픈소스캡쳐 사용 불가 (사용자별 차단됨)'
+          : '오픈소스캡쳐 사용 불가 (전체 차단됨)',
+        message: `${check.message}\n\n${
+          check.userSpecific
+            ? `현재 사용자(${localUser.name})의 캡쳐 사용 권한은 관리자(${AUTHORIZED_ADMIN_IP})가 '사용자 정보 -> 시스템 정보'에서 허용(ON)해야 사용할 수 있습니다.`
+            : `오픈소스캡쳐 기능을 사용하려면 관리자(${AUTHORIZED_ADMIN_IP})가 설정을 활성화해야 합니다.`
+        }`,
+        currentIp: localUser.address,
+        requiredIp: check.requiredAdminIp,
+      });
+      return;
+    }
+    setShowKalmuriCapture(true);
+  };
+
+  // Safe Capture policy on/off toggler enforcing 192.168.10.212
+  const handleToggleCapturePolicy = (nextEnabled: boolean) => {
+    const result = evaluateCapturePolicyChange(
+      localUser.address,
+      settings.captureFeatureEnabled,
+      nextEnabled
+    );
+    if (!result.allowed) {
+      setSecurityAlert({
+        title: '오픈소스캡쳐 ON/OFF 권한 제한',
+        message: result.message,
+        currentIp: result.currentIp,
+        requiredIp: result.requiredIp,
+      });
+      return;
+    }
+    setSettings((prev) => ({ ...prev, captureFeatureEnabled: nextEnabled }));
+    triggerTrayBalloon(
+      '오픈소스캡쳐 정책 변경',
+      result.message
+    );
+  };
+
+  // Safe User-Specific Capture policy toggler enforcing 192.168.10.212
+  const handleToggleUserCapturePolicy = (targetUser: User, nextEnabled: boolean) => {
+    const result = evaluateUserCapturePolicyChange(
+      localUser.address,
+      targetUser,
+      nextEnabled
+    );
+    if (!result.allowed) {
+      setSecurityAlert({
+        title: '사용자별 캡쳐 권한 설정 제한',
+        message: result.message,
+        currentIp: result.currentIp,
+        requiredIp: result.requiredIp,
+      });
+      return;
+    }
+
+    // Update target user in peers list
+    setPeers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? { ...u, captureEnabled: nextEnabled } : u))
+    );
+
+    // If target user is current localUser, update localUser state as well
+    if (localUser.id === targetUser.id) {
+      setLocalUser((prev) => ({ ...prev, captureEnabled: nextEnabled }));
+    }
+
+    // Update currently inspected user modal state
+    setInspectingUser((prev) =>
+      prev && prev.id === targetUser.id ? { ...prev, captureEnabled: nextEnabled } : prev
+    );
+
+    triggerTrayBalloon(
+      '사용자별 캡쳐 권한 변경',
+      result.message
+    );
+  };
 
   const handleSendCaptureToChat = (item: CapturedItem) => {
     const peerId = activeChatPeerId || (peers[0] ? peers[0].id : '');
@@ -555,6 +688,19 @@ export function App() {
         (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's')
       ) {
         e.preventDefault();
+        if (!settings.captureFeatureEnabled) {
+          triggerTrayBalloon(
+            '오픈소스캡쳐 사용 불가 (차단됨)',
+            '관리자(192.168.10.212) 정책에 의해 오픈소스캡쳐 사용이 비활성화되어 있습니다.'
+          );
+          setSecurityAlert({
+            title: '오픈소스캡쳐 사용 불가 (차단됨)',
+            message: '관리자(192.168.10.212)에 의해 오픈소스캡쳐 기능이 비활성화(차단)되어 있습니다.\n오픈소스캡쳐를 사용하려면 관리자(192.168.10.212)가 설정을 활성화해야 합니다.',
+            currentIp: localUser.address,
+            requiredIp: AUTHORIZED_ADMIN_IP,
+          });
+          return;
+        }
         setShowKalmuriCapture(true);
         triggerTrayBalloon(
           '오픈소스캡쳐 실행',
@@ -565,7 +711,7 @@ export function App() {
 
     window.addEventListener('keydown', handleGlobalCaptureKey);
     return () => window.removeEventListener('keydown', handleGlobalCaptureKey);
-  }, []);
+  }, [settings.captureFeatureEnabled, localUser.address]);
 
   // Progress active file transfers
   useEffect(() => {
@@ -1156,19 +1302,63 @@ export function App() {
             </span>
           </button>
 
+          {/* Quick IP Switcher & Security Authority Badge */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border border-white/20 bg-black/25 text-white">
+            <span className="opacity-75">내 IP:</span>
+            <span className="font-mono font-bold text-amber-300">{localUser.address}</span>
+            {localUser.address === AUTHORIZED_ADMIN_IP ? (
+              <span className="text-[9px] bg-amber-400 text-slate-900 font-bold px-1 rounded">
+                관리자 (원격/캡쳐 권한)
+              </span>
+            ) : (
+              <span className="text-[9px] bg-slate-300 text-slate-800 font-medium px-1 rounded">
+                일반 IP (권한 제한)
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                handleSwitchLocalIp(
+                  localUser.address === AUTHORIZED_ADMIN_IP ? '192.168.1.42' : AUTHORIZED_ADMIN_IP
+                )
+              }
+              className="text-[10px] text-amber-200 hover:text-white underline ml-1 cursor-pointer"
+              title="원격제어 및 오픈소스캡쳐 권한 테스트를 위해 IP를 즉시 전환합니다."
+            >
+              {localUser.address === AUTHORIZED_ADMIN_IP ? '[192.168.1.42로 전환]' : '[192.168.10.212로 전환]'}
+            </button>
+          </div>
+
           {/* Kalmuri Screen Capture Launch Button */}
           <button
             type="button"
-            onClick={() => setShowKalmuriCapture((v) => !v)}
-            title={i18n.mainWindow.kalmuriCaptureTooltip}
+            onClick={() => {
+              if (!settings.captureFeatureEnabled && !showKalmuriCapture) {
+                handleOpenCapture();
+              } else {
+                setShowKalmuriCapture((v) => !v);
+              }
+            }}
+            title={
+              !settings.captureFeatureEnabled
+                ? '오픈소스캡쳐 기능이 비활성화(차단)되어 있습니다. (192.168.10.212에서만 ON 가능)'
+                : i18n.mainWindow.kalmuriCaptureTooltip
+            }
             className={`px-2.5 py-0.5 rounded text-[11px] font-bold border flex items-center gap-1.5 cursor-pointer shadow-xs ${
-              showKalmuriCapture
+              !settings.captureFeatureEnabled
+                ? 'bg-rose-900/60 border-rose-500/50 text-rose-200'
+                : showKalmuriCapture
                 ? 'bg-blue-600 border-blue-400 text-white'
                 : 'bg-white/10 hover:bg-white/20 border-white/20 text-sky-200'
             }`}
           >
-            <span>📸</span>
+            <span>{settings.captureFeatureEnabled ? '📸' : '🔒'}</span>
             <span>{i18n.mainWindow.kalmuriCapture}</span>
+            {!settings.captureFeatureEnabled && (
+              <span className="text-[9px] bg-rose-600 text-white px-1 rounded font-bold">
+                차단됨
+              </span>
+            )}
           </button>
 
           <button
@@ -1381,7 +1571,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowKalmuriCapture(true);
+                    handleOpenCapture();
                     setActiveMenu(null);
                   }}
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer font-medium"
@@ -1618,7 +1808,7 @@ export function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowKalmuriCapture(true)}
+                onClick={handleOpenCapture}
                 title={i18n.mainWindow.kalmuriCaptureTooltip}
                 className="p-1 rounded hover:bg-[#d6d2c2] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center justify-center text-xs"
               >
@@ -1792,7 +1982,7 @@ export function App() {
                   type="button"
                   onClick={() => {
                     const u = peers.find((p) => p.id === selectedTreeUserId);
-                    if (u) setRemoteDesktopPeer(u);
+                    if (u) handleRequestRemoteDesktop(u);
                   }}
                   className="px-1.5 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] rounded-xs cursor-pointer"
                 >
@@ -1867,9 +2057,9 @@ export function App() {
                 onFileAction={handleFileAction}
                 onStartRemoteDesktop={(pid) => {
                   const target = peers.find((p) => p.id === pid);
-                  if (target) setRemoteDesktopPeer(target);
+                  if (target) handleRequestRemoteDesktop(target);
                 }}
-                onOpenCapture={() => setShowKalmuriCapture(true)}
+                onOpenCapture={handleOpenCapture}
                 onOpenHistory={() => setShowHistoryModal(true)}
                 onOpenTransfers={() => setShowTransfersModal(true)}
                 onToggleProtocolMode={handleToggleProtocolMode}
@@ -2032,7 +2222,9 @@ export function App() {
       {inspectingUser && (
         <UserInfoWindowModal
           user={inspectingUser}
+          currentIp={localUser.address}
           language={settings.language}
+          onToggleUserCapturePolicy={handleToggleUserCapturePolicy}
           onClose={() => setInspectingUser(null)}
         />
       )}
@@ -2101,10 +2293,25 @@ export function App() {
       <KalmuriCapture
         isOpen={showKalmuriCapture}
         onClose={() => setShowKalmuriCapture(false)}
-        onReopen={() => setShowKalmuriCapture(true)}
+        onReopen={handleOpenCapture}
         onSendToChat={handleSendCaptureToChat}
         activeChatPeerName={activePeer?.name}
+        isCaptureEnabled={settings.captureFeatureEnabled && localUser.captureEnabled !== false}
+        currentIp={localUser.address}
+        onToggleCapturePolicy={handleToggleCapturePolicy}
       />
+
+      {/* Security Alert Dialog Modal for Policy Restrictions */}
+      {securityAlert && (
+        <SecurityAlertModal
+          title={securityAlert.title}
+          message={securityAlert.message}
+          currentIp={securityAlert.currentIp}
+          requiredIp={securityAlert.requiredIp}
+          onClose={() => setSecurityAlert(null)}
+          onSwitchToAdminIp={() => handleSwitchLocalIp(AUTHORIZED_ADMIN_IP)}
+        />
+      )}
     </div>
   );
 }

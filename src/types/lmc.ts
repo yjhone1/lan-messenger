@@ -9,6 +9,7 @@ export const VERSION_CONFIG = {
 } as const;
 
 export const APP_VERSION = VERSION_CONFIG.version;
+export const AUTHORIZED_ADMIN_IP = '192.168.10.212';
 
 export type ProtocolHeaderMode = 'Legacy v1.0' | 'Strict v3.0';
 
@@ -141,6 +142,7 @@ export interface User {
   sessionKeyHex?: string;
   sessionIvHex?: string;
   envelopeBytes?: number;
+  captureEnabled?: boolean;
 }
 
 export interface Group {
@@ -368,6 +370,9 @@ export interface LmcSettings {
   showStatusTooltip: boolean;
   // Hotkeys
   sendKeyModCtrlEnter: boolean;
+  // Security & Permissions Policy
+  authorizedRemoteIp: string;
+  captureFeatureEnabled: boolean;
 }
 
 export interface SmileyDef {
