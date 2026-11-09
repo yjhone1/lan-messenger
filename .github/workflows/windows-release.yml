@@ -14,7 +14,6 @@ permissions:
 env:
   QT_VERSION: '6.6.3'
   LMC_VERSION: '1.4.0.1'
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build-windows:

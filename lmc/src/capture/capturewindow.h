@@ -38,7 +38,13 @@
 #include <QPixmap>
 #include <QString>
 #include <QColor>
-#include "capturedefinitions.h"
+#include <QEvent>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QPaintEvent>
+#include <QCloseEvent>
+#include <QContextMenuEvent>
+#include "capture/capturedefinitions.h"
 
 class lmcAreaFrameWidget;
 class lmcDragOverlayWidget;

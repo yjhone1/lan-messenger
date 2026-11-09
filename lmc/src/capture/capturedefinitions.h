@@ -82,12 +82,12 @@ inline QString colorToTColor(const QColor& color) {
 inline bool isShortcutConflictingWithLmc(const QKeySequence& shortcut, QString* pConflictName = nullptr) {
   if (shortcut.isEmpty()) return false;
 
-  QKeySequence ctrlG(QKeyCombination(Qt::ControlModifier, Qt::Key_G));
-  QKeySequence ctrlB(QKeyCombination(Qt::ControlModifier, Qt::Key_B));
-  QKeySequence ctrlH(QKeyCombination(Qt::ControlModifier, Qt::Key_H));
-  QKeySequence ctrlJ(QKeyCombination(Qt::ControlModifier, Qt::Key_J));
-  QKeySequence ctrlP(QKeyCombination(Qt::ControlModifier, Qt::Key_P));
-  QKeySequence ctrlS(QKeyCombination(Qt::ControlModifier, Qt::Key_S));
+  QKeySequence ctrlG(int(Qt::ControlModifier) | int(Qt::Key_G));
+  QKeySequence ctrlB(int(Qt::ControlModifier) | int(Qt::Key_B));
+  QKeySequence ctrlH(int(Qt::ControlModifier) | int(Qt::Key_H));
+  QKeySequence ctrlJ(int(Qt::ControlModifier) | int(Qt::Key_J));
+  QKeySequence ctrlP(int(Qt::ControlModifier) | int(Qt::Key_P));
+  QKeySequence ctrlS(int(Qt::ControlModifier) | int(Qt::Key_S));
 
   if (shortcut == ctrlG) {
     if (pConflictName) *pConflictName = "Ctrl+G (Public Chat)";

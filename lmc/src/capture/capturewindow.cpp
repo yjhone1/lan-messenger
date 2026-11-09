@@ -21,8 +21,8 @@
 **
 ****************************************************************************/
 
-#include "capturewindow.h"
-#include "capturedefinitions.h"
+#include "capture/capturewindow.h"
+#include "capture/capturedefinitions.h"
 #include <QApplication>
 #include <QGuiApplication>
 #include <QScreen>
@@ -38,6 +38,8 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QLineEdit>
+#include <QCheckBox>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
