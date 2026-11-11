@@ -1,15 +1,162 @@
 export const VERSION_CONFIG = {
-  version: 'v1.4.0.1',
-  rawVersion: '1.4.0.1',
-  displayVersion: 'v1.4.0.1',
-  current: 'v1.4.0.1',
+  version: 'v1.4.0.3',
+  rawVersion: '1.4.0.3',
+  displayVersion: 'v1.4.0.3',
+  current: 'v1.4.0.3',
   appName: 'LAN Messenger',
-  fullTitle: 'LAN Messenger v1.4.0.1',
+  fullTitle: 'LAN Messenger v1.4.0.3',
   legacyBaseVersion: '1.2.39',
 } as const;
 
 export const APP_VERSION = VERSION_CONFIG.version;
 export const AUTHORIZED_ADMIN_IP = '192.168.10.212';
+export const UTILITY_ADMIN_PASSWORD = '192.168.10.212';
+
+export type AiAgentKey =
+  | 'autogpt'
+  | 'babyagi'
+  | 'devin'
+  | 'metagpt'
+  | 'crewai'
+  | 'autogen'
+  | 'claudeComputerUse'
+  | 'openaiOperator'
+  | 'agentgpt'
+  | 'chatdev';
+
+export type UserAiAgentBlockMap = Record<AiAgentKey, boolean>;
+
+export interface AiAgentProcessInfo {
+  key: AiAgentKey;
+  name: string;
+  processBinary: string;
+  category: 'autonomous' | 'coding' | 'system-control';
+  riskLevel: 'High' | 'Medium';
+  description: string;
+  icon: string;
+}
+
+export const REPRESENTATIVE_AI_AGENTS: AiAgentProcessInfo[] = [
+  {
+    key: 'autogpt',
+    name: 'AutoGPT',
+    processBinary: 'autogpt.exe / python -m autogpt',
+    category: 'autonomous',
+    riskLevel: 'High',
+    description: '목표 지향 자율 루프, 로컬 쉘 명령어 및 파일 시스템 임의 조작 백그라운드 데몬',
+    icon: '🤖',
+  },
+  {
+    key: 'babyagi',
+    name: 'BabyAGI',
+    processBinary: 'babyagi.exe / babyagi.py',
+    category: 'autonomous',
+    riskLevel: 'High',
+    description: '작업 자동 분해 및 무한 하위 태스크 큐 자율 실행 백그라운드 프로세스',
+    icon: '👶',
+  },
+  {
+    key: 'devin',
+    name: 'Devin / OpenHands',
+    processBinary: 'openhands-daemon / devin-agent',
+    category: 'coding',
+    riskLevel: 'High',
+    description: '자율 코딩 엔지니어링 에이전트, 로컬 터미널 및 Docker 컨테이너 자율 제어',
+    icon: '👨‍💻',
+  },
+  {
+    key: 'metagpt',
+    name: 'MetaGPT',
+    processBinary: 'metagpt-worker / python -m metagpt',
+    category: 'coding',
+    riskLevel: 'High',
+    description: 'PM/아키텍트/엔지니어 등 멀티 에이전트 협업 기반 로컬 컴파일 및 소스 생성',
+    icon: '🏢',
+  },
+  {
+    key: 'crewai',
+    name: 'CrewAI',
+    processBinary: 'crewai-exec / crewai_runner',
+    category: 'autonomous',
+    riskLevel: 'Medium',
+    description: '역할 기반 멀티 에이전트 오케스트레이션 및 로컬 툴·파이썬 스크립트 자율 호출',
+    icon: '👥',
+  },
+  {
+    key: 'autogen',
+    name: 'Microsoft AutoGen',
+    processBinary: 'autogen-agent / pyautogen',
+    category: 'autonomous',
+    riskLevel: 'High',
+    description: '다중 에이전트 간 자율 대화 및 로컬 코드 자동 실행기(Code Executor)',
+    icon: '🪟',
+  },
+  {
+    key: 'claudeComputerUse',
+    name: 'Claude Computer Use',
+    processBinary: 'claude-computer-use / anthropic-desktop',
+    category: 'system-control',
+    riskLevel: 'High',
+    description: 'OS 화면 실시간 캡처, 마우스 클릭/드래그 및 키보드 입력 직접 제어 에이전트',
+    icon: '🖥️',
+  },
+  {
+    key: 'openaiOperator',
+    name: 'OpenAI Operator / Codex Agent',
+    processBinary: 'operator-daemon / codex-runner',
+    category: 'system-control',
+    riskLevel: 'High',
+    description: '브라우저 자율 탐색, 웹 폼 자동 작성 및 로컬 개발 환경 제어 에이전트',
+    icon: '⚡',
+  },
+  {
+    key: 'agentgpt',
+    name: 'AgentGPT',
+    processBinary: 'agentgpt-node / agentgpt.exe',
+    category: 'autonomous',
+    riskLevel: 'Medium',
+    description: '웹/로컬 환경 자율 목표 달성 및 지속적인 하위 프로세스 생성 에이전트',
+    icon: '🌐',
+  },
+  {
+    key: 'chatdev',
+    name: 'ChatDev',
+    processBinary: 'chatdev-run / python run.py',
+    category: 'coding',
+    riskLevel: 'High',
+    description: '가상 소프트웨어 개발사 시뮬레이션, 로컬 컴파일러 및 테스트 환경 자율 구동',
+    icon: '💻',
+  },
+];
+
+export const DEFAULT_AI_AGENT_BLOCKS: UserAiAgentBlockMap = {
+  autogpt: false,          // false = 차단(OFF, 권장 보안 상태)
+  babyagi: false,
+  devin: false,
+  metagpt: false,
+  crewai: false,
+  autogen: false,
+  claudeComputerUse: false,
+  openaiOperator: false,
+  agentgpt: false,
+  chatdev: false,
+};
+
+export interface UserUtilityFeatures {
+  remoteDesktop: boolean;  // 원격제어
+  screenCapture: boolean;  // 캡쳐
+  codexAgent: boolean;     // codex agent
+  claudeAgent: boolean;    // 클로드 agent
+  googleAgent: boolean;    // 구글 agent
+}
+
+export const DEFAULT_USER_UTILITY_FEATURES: UserUtilityFeatures = {
+  remoteDesktop: true,
+  screenCapture: true,
+  codexAgent: true,
+  claudeAgent: true,
+  googleAgent: true,
+};
 
 export type ProtocolHeaderMode = 'Legacy v1.0' | 'Strict v3.0';
 
@@ -143,6 +290,9 @@ export interface User {
   sessionIvHex?: string;
   envelopeBytes?: number;
   captureEnabled?: boolean;
+  utilityFeatures?: UserUtilityFeatures;
+  aiAgentBlocks?: UserAiAgentBlockMap;
+  remoteDesktopUnlocked?: boolean;
 }
 
 export interface Group {

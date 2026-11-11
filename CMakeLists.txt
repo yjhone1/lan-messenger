@@ -8,7 +8,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
     file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _lmc_ver_line LIMIT_COUNT 1)
     string(STRIP "${_lmc_ver_line}" _lmc_ver_default)
 else()
-    set(_lmc_ver_default "1.4.0.1")
+    set(_lmc_ver_default "1.4.0.3")
 endif()
 
 project(lan-messenger VERSION ${_lmc_ver_default} LANGUAGES CXX)

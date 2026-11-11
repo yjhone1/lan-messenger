@@ -39,6 +39,7 @@ interface ChatWindowProps {
   onOpenTransfers: () => void;
   onToggleProtocolMode: (newMode: ProtocolHeaderMode) => void;
   onSimulateIncomingMessage?: (peerId: string) => void;
+  onTriggerAgent?: (agentKey: 'codexAgent' | 'claudeAgent' | 'googleAgent', peer: User) => void;
 }
 
 const FONT_FAMILIES = ['Tahoma', 'Segoe UI', 'Arial', 'Verdana', 'Courier New', 'Georgia', 'Trebuchet MS'];
@@ -684,6 +685,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenTransfers,
   onToggleProtocolMode,
   onSimulateIncomingMessage,
+  onTriggerAgent,
 }) => {
   const [inputText, setInputText] = useState('');
   const [fontFamily, setFontFamily] = useState(settings.fontFamily || 'Tahoma');
@@ -1020,6 +1022,45 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             >
               <span>📸</span>
             </button>
+          )}
+
+          {/* AI Agents Group (Codex, Claude, Google Agent) */}
+          {onTriggerAgent && (
+            <>
+              <div className="h-4 w-[1px] bg-[#aca899] mx-0.5" />
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  data-testid="btn-chat-codex-agent"
+                  onClick={() => onTriggerAgent('codexAgent', peer)}
+                  title="Codex Agent: 코드 및 프로그래밍 스크립트 작성 AI 지원"
+                  className="px-1.5 py-0.5 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center gap-1 text-[11px] font-semibold text-slate-800"
+                >
+                  <span>💻</span>
+                  <span className="hidden xl:inline text-[10px]">Codex</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-chat-claude-agent"
+                  onClick={() => onTriggerAgent('claudeAgent', peer)}
+                  title="클로드 Agent: 대화 분석 및 다국어 지원 AI"
+                  className="px-1.5 py-0.5 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center gap-1 text-[11px] font-semibold text-slate-800"
+                >
+                  <span>🧠</span>
+                  <span className="hidden xl:inline text-[10px]">클로드</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-chat-google-agent"
+                  onClick={() => onTriggerAgent('googleAgent', peer)}
+                  title="구글 Agent: Gemini 실시간 정보 및 멀티모달 분석 AI"
+                  className="px-1.5 py-0.5 rounded hover:bg-[#d6d2c2] active:bg-[#c5c1b0] border border-transparent hover:border-[#aca899] cursor-pointer flex items-center gap-1 text-[11px] font-semibold text-slate-800"
+                >
+                  <span>✨</span>
+                  <span className="hidden xl:inline text-[10px]">구글 AI</span>
+                </button>
+              </div>
+            </>
           )}
 
           <div className="h-4 w-[1px] bg-[#aca899] mx-0.5" />

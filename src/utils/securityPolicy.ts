@@ -1,13 +1,39 @@
 /**
- * Security & Permission Policy Engine for LAN Messenger v1.4.0.1
+ * Security & Process Execution Policy Engine for LAN Messenger v1.4.0.3
  * 
- * Enforces:
- * 1. Only 192.168.10.212 is authorized to initiate/request remote desktop control.
- * 2. Only 192.168.10.212 is authorized to toggle OpenSourceCapture ON/OFF (enable/disable usage).
- * 3. All other IPs are restricted and receive informative policy notifications.
+ * Policy Rules:
+ * 1. Remote Desktop (원격제어):
+ *    - Located at the bottom of the System (시스템) tab.
+ *    - IP restriction is removed: Any IP can initiate remote desktop IF AND ONLY IF
+ *      the operator enters the authentication password '192.168.10.212'.
+ * 
+ * 2. Screen Capture (오픈소스캡쳐):
+ *    - Completely unrestricted: Enabled by default for all users upon installing LAN Messenger.
+ *    - No active/inactive toggle or administrative blocking.
+ * 
+ * 3. AI Agent Local Process Blocker (유틸리티 탭):
+ *    - Protected by password '192.168.10.212'.
+ *    - Blocks local autonomous background daemons, terminal execution, and process-level
+ *      loops of the top 10 representative AI Agents (LLM API text chat is allowed; local daemon/process is blocked).
+ *    - Granular per-user and per-agent toggle:
+ *      * ON = 로컬 프로세스 구동 허용 (Allowed)
+ *      * OFF = 로컬 프로세스단 차단 및 실행 금지 (Blocked - Default security posture)
  */
 
-export const AUTHORIZED_ADMIN_IP = '192.168.10.212';
+import {
+  AiAgentKey,
+  AiAgentProcessInfo,
+  REPRESENTATIVE_AI_AGENTS,
+  UserAiAgentBlockMap,
+  DEFAULT_AI_AGENT_BLOCKS,
+  UserUtilityFeatures,
+  DEFAULT_USER_UTILITY_FEATURES,
+  User,
+} from '../types/lmc';
+
+export const REMOTE_DESKTOP_PASSWORD = '192.168.10.212';
+export const UTILITY_ADMIN_PASSWORD = '192.168.10.212';
+export const AUTHORIZED_ADMIN_IP = '192.168.10.212'; // Retained for display reference
 
 /**
  * Normalizes an IP string (handles IPv6-mapped IPv4 such as ::ffff:192.168.10.212).
@@ -22,7 +48,51 @@ export function normalizeIp(ip: string): string {
 }
 
 /**
- * Validates whether the given IP is the authorized administrator / remote requester.
+ * Validates the Remote Desktop Authentication Password (192.168.10.212).
+ * Works regardless of client IP.
+ */
+export function validateRemoteDesktopPassword(password: string): boolean {
+  if (!password) return false;
+  return password.trim() === REMOTE_DESKTOP_PASSWORD;
+}
+
+export interface RemoteDesktopRequestCheck {
+  allowed: boolean;
+  requiresPassword: boolean;
+  message: string;
+}
+
+/**
+ * Validates remote desktop control request permission.
+ * Now IP-independent: Unlocks when the operator verifies password '192.168.10.212'.
+ */
+export function validateRemoteDesktopRequest(
+  passwordOrVerified: string | boolean,
+  targetPeerName?: string
+): RemoteDesktopRequestCheck {
+  const peerMsg = targetPeerName ? ` (${targetPeerName} 대상)` : '';
+  const isUnlocked =
+    typeof passwordOrVerified === 'boolean'
+      ? passwordOrVerified
+      : validateRemoteDesktopPassword(passwordOrVerified);
+
+  if (isUnlocked) {
+    return {
+      allowed: true,
+      requiresPassword: false,
+      message: `원격 제어 세션 인증이 완료되었습니다${peerMsg}. 원격 데스크톱 연결을 시작합니다.`,
+    };
+  }
+
+  return {
+    allowed: false,
+    requiresPassword: true,
+    message: `원격 제어를 구동하려면 보안 인증 비밀번호(${REMOTE_DESKTOP_PASSWORD})를 입력해야 합니다.`,
+  };
+}
+
+/**
+ * Validates whether the given IP is the historical admin IP (for backwards compatibility).
  */
 export function isAuthorizedRemoteRequester(ip: string): boolean {
   const norm = normalizeIp(ip);
@@ -30,200 +100,220 @@ export function isAuthorizedRemoteRequester(ip: string): boolean {
 }
 
 /**
- * Validates whether the given IP is authorized to configure OpenSourceCapture ON/OFF policy.
+ * Screen Capture is unconditionally active and available upon installing LAN Messenger.
  */
-export function canConfigureCapturePolicy(ip: string): boolean {
-  const norm = normalizeIp(ip);
-  return norm === AUTHORIZED_ADMIN_IP;
-}
-
-export interface RemoteDesktopRequestCheck {
-  allowed: boolean;
-  requiredIp: string;
-  currentIp: string;
-  message: string;
-}
-
-/**
- * Validates remote desktop control request permission.
- */
-export function validateRemoteDesktopRequest(
-  requesterIp: string,
-  targetPeerName?: string
-): RemoteDesktopRequestCheck {
-  const norm = normalizeIp(requesterIp);
-  const isAllowed = norm === AUTHORIZED_ADMIN_IP;
-  const peerMsg = targetPeerName ? ` (${targetPeerName} 대상)` : '';
-
-  if (isAllowed) {
-    return {
-      allowed: true,
-      requiredIp: AUTHORIZED_ADMIN_IP,
-      currentIp: norm,
-      message: `원격 제어 요청 권한이 승인되었습니다${peerMsg}. (인가 IP: ${AUTHORIZED_ADMIN_IP})`,
-    };
-  }
-
-  return {
-    allowed: false,
-    requiredIp: AUTHORIZED_ADMIN_IP,
-    currentIp: norm,
-    message: `원격 제어 요청은 관리자 IP(${AUTHORIZED_ADMIN_IP})에서만 허용됩니다.\n현재 사용자 IP: ${norm || '알 수 없음'}\n원격 제어를 요청하려면 관리자 IP(192.168.10.212)로 접속해야 합니다.`,
-  };
-}
-
-export interface CapturePolicyChangeResult {
-  allowed: boolean;
-  nextState: boolean;
-  requiredIp: string;
-  currentIp: string;
-  message: string;
-}
-
-/**
- * Validates and computes OpenSourceCapture ON/OFF policy change.
- */
-export function evaluateCapturePolicyChange(
-  requesterIp: string,
-  currentState: boolean,
-  targetState: boolean
-): CapturePolicyChangeResult {
-  const norm = normalizeIp(requesterIp);
-  const isAllowed = norm === AUTHORIZED_ADMIN_IP;
-
-  if (isAllowed) {
-    return {
-      allowed: true,
-      nextState: targetState,
-      requiredIp: AUTHORIZED_ADMIN_IP,
-      currentIp: norm,
-      message: `오픈소스캡쳐 기능이 관리자(${AUTHORIZED_ADMIN_IP})에 의해 ${targetState ? '사용 허용(ON)' : '사용 차단(OFF)'} 상태로 변경되었습니다.`,
-    };
-  }
-
-  return {
-    allowed: false,
-    nextState: currentState,
-    requiredIp: AUTHORIZED_ADMIN_IP,
-    currentIp: norm,
-    message: `오픈소스캡쳐 기능의 ON/OFF 설정은 관리자 IP(${AUTHORIZED_ADMIN_IP})에서만 변경할 수 있습니다.\n현재 사용자 IP: ${norm || '알 수 없음'}`,
-  };
-}
-
 export interface CaptureUsageCheck {
   canUse: boolean;
   message: string;
-  requiredAdminIp: string;
 }
 
-/**
- * Evaluates whether a user can use OpenSourceCapture under the current global policy.
- */
-export function evaluateCaptureUsage(isFeatureEnabled: boolean): CaptureUsageCheck {
-  if (isFeatureEnabled) {
-    return {
-      canUse: true,
-      message: '오픈소스캡쳐 기능을 사용할 수 있습니다.',
-      requiredAdminIp: AUTHORIZED_ADMIN_IP,
-    };
-  }
-
+export function evaluateCaptureUsage(): CaptureUsageCheck {
   return {
-    canUse: false,
-    message: `오픈소스캡쳐 사용 불가: 관리자(${AUTHORIZED_ADMIN_IP})에 의해 오픈소스캡쳐 기능 사용이 비활성화(차단)되어 있습니다.`,
-    requiredAdminIp: AUTHORIZED_ADMIN_IP,
+    canUse: true,
+    message: '오픈소스캡쳐 기능이 활성화되어 있으며 자유롭게 사용할 수 있습니다.',
   };
 }
 
-export interface UserCapturePolicyChangeResult {
+/**
+ * Backward compatibility helper for capture checks
+ */
+export function evaluateUserCaptureUsage(): CaptureUsageCheck & { userSpecific: boolean } {
+  return {
+    canUse: true,
+    userSpecific: false,
+    message: '오픈소스캡쳐 기능은 모든 사용자에게 기본 활성화되어 있습니다.',
+  };
+}
+
+/**
+ * Validates the Utility Tab Administrator Password (192.168.10.212).
+ */
+export function validateUtilityPassword(password: string): boolean {
+  if (!password) return false;
+  return password.trim() === UTILITY_ADMIN_PASSWORD;
+}
+
+/**
+ * Checks whether a specific AI Agent process is permitted to run on the endpoint.
+ * Default: false (OFF = 프로세스 차단 / 실행 방지).
+ */
+export function isAiAgentProcessAllowed(
+  user: { aiAgentBlocks?: UserAiAgentBlockMap } | null | undefined,
+  agentKey: AiAgentKey
+): boolean {
+  if (!user || !user.aiAgentBlocks) {
+    return DEFAULT_AI_AGENT_BLOCKS[agentKey] ?? false;
+  }
+  return user.aiAgentBlocks[agentKey] === true;
+}
+
+export interface AiAgentProcessCheck {
   allowed: boolean;
-  targetUserId: string;
-  targetUserName: string;
-  nextState: boolean;
-  requiredIp: string;
-  currentIp: string;
+  agent: AiAgentProcessInfo;
+  processBinary: string;
+  userName: string;
   message: string;
 }
 
 /**
- * Validates whether the given requester IP can configure a user's capture ON/OFF permission.
+ * Validates whether an AI Agent process is permitted or blocked at the endpoint daemon level.
  */
-export function canConfigureUserCapturePolicy(requesterIp: string): boolean {
-  return canConfigureCapturePolicy(requesterIp);
-}
+export function validateAiAgentProcess(
+  user: User | null | undefined,
+  agentKey: AiAgentKey
+): AiAgentProcessCheck {
+  const agent =
+    REPRESENTATIVE_AI_AGENTS.find((a) => a.key === agentKey) ||
+    ({
+      key: agentKey,
+      name: agentKey,
+      processBinary: `${agentKey}.exe`,
+      category: 'autonomous',
+      riskLevel: 'High',
+      description: '로컬 자율 실행 에이전트',
+      icon: '🤖',
+    } as AiAgentProcessInfo);
 
-/**
- * Validates and evaluates changing an individual user's OpenSourceCapture permission.
- * Strictly permitted ONLY for 192.168.10.212.
- */
-export function evaluateUserCapturePolicyChange(
-  requesterIp: string,
-  targetUser: { id: string; name: string; captureEnabled?: boolean },
-  targetState: boolean
-): UserCapturePolicyChangeResult {
-  const norm = normalizeIp(requesterIp);
-  const isAllowed = norm === AUTHORIZED_ADMIN_IP;
+  const userName = user?.name || '로컬 엔드포인트';
+  const allowed = isAiAgentProcessAllowed(user, agentKey);
 
-  if (isAllowed) {
+  if (allowed) {
     return {
       allowed: true,
-      targetUserId: targetUser.id,
-      targetUserName: targetUser.name,
-      nextState: targetState,
-      requiredIp: AUTHORIZED_ADMIN_IP,
-      currentIp: norm,
-      message: `[관리자 ${AUTHORIZED_ADMIN_IP}] '${targetUser.name}' 사용자의 오픈소스캡쳐 기능이 ${
-        targetState ? '사용 허용(ON)' : '사용 차단(OFF)'
-      } 상태로 설정되었습니다.`,
+      agent,
+      processBinary: agent.processBinary,
+      userName,
+      message: `[실행 허용] ${agent.name} (${agent.processBinary}) 프로세스 구동이 허용되어 있습니다.`,
     };
   }
 
-  const currentState = targetUser.captureEnabled !== false;
   return {
     allowed: false,
-    targetUserId: targetUser.id,
-    targetUserName: targetUser.name,
-    nextState: currentState,
-    requiredIp: AUTHORIZED_ADMIN_IP,
-    currentIp: norm,
-    message: `사용자별 캡쳐 권한 설정은 관리자 IP(${AUTHORIZED_ADMIN_IP})에서만 가능합니다.\n현재 IP: ${norm || '알 수 없음'}\n대상 사용자: ${targetUser.name}`,
+    agent,
+    processBinary: agent.processBinary,
+    userName,
+    message: `[프로세스 실행 차단] '${agent.name}' (${agent.processBinary})\n\nLLM 클라우드 질의는 허용되지만, 로컬 자율 데몬 및 백그라운드 프로세스 구동은 보안 정책에 의해 차단되었습니다.\n\n해제를 원하실 경우 [사용자 정보 > 유틸리티 탭]에서 관리자 인증(비밀번호: ${UTILITY_ADMIN_PASSWORD}) 후 구동을 허용할 수 있습니다.`,
   };
 }
 
 /**
- * Evaluates whether a specific user can use OpenSourceCapture, taking into account
- * both the global policy and the user's individual permission.
+ * Backwards compatibility for UserUtilityFeatures & Capture Policy
  */
-export function evaluateUserCaptureUsage(
-  user: { id?: string; name?: string; captureEnabled?: boolean } | null | undefined,
-  globalFeatureEnabled: boolean
-): CaptureUsageCheck & { userSpecific: boolean } {
-  // 1. Check global policy
-  if (!globalFeatureEnabled) {
-    return {
-      canUse: false,
-      userSpecific: false,
-      message: `오픈소스캡쳐 사용 불가: 관리자(${AUTHORIZED_ADMIN_IP})에 의해 오픈소스캡쳐 기능 전체가 비활성화(차단)되어 있습니다.`,
-      requiredAdminIp: AUTHORIZED_ADMIN_IP,
-    };
-  }
+export type UtilityFeatureKey = keyof UserUtilityFeatures;
 
-  // 2. Check user-specific policy (defaults to true if undefined)
-  if (user && user.captureEnabled === false) {
-    const userName = user.name || '현재 사용자';
-    return {
-      canUse: false,
-      userSpecific: true,
-      message: `오픈소스캡쳐 사용 불가: '${userName}' 사용자는 관리자(${AUTHORIZED_ADMIN_IP})에 의해 캡쳐 사용 권한이 개별 차단(OFF)되었습니다.`,
-      requiredAdminIp: AUTHORIZED_ADMIN_IP,
-    };
-  }
+export interface UtilityFeatureMetadata {
+  key: UtilityFeatureKey;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  category: 'system' | 'ai';
+  description: string;
+}
 
+export const UTILITY_FEATURES_LIST: UtilityFeatureMetadata[] = [
+  {
+    key: 'remoteDesktop',
+    label: '원격제어 (Remote Desktop)',
+    shortLabel: '원격제어',
+    icon: '🖥️',
+    category: 'system',
+    description: '192.168.10.212 보안 비밀번호 기반 원격 화면 공유 및 원격 데스크톱 제어',
+  },
+  {
+    key: 'screenCapture',
+    label: '오픈소스캡쳐 (OpenSourceCapture)',
+    shortLabel: '캡쳐',
+    icon: '📸',
+    category: 'system',
+    description: '화면 캡쳐 스위트 실행 및 단축키(PrintScreen, F11) 사용 (기본 전원 허용)',
+  },
+  {
+    key: 'codexAgent',
+    label: 'Codex Agent (코덱스)',
+    shortLabel: 'Codex AI',
+    icon: '💻',
+    category: 'ai',
+    description: '코드 분석, 자동완성, 개발 스크립트 작성 및 디버깅 AI 에이전트',
+  },
+  {
+    key: 'claudeAgent',
+    label: '클로드 Agent (Claude)',
+    shortLabel: '클로드 AI',
+    icon: '🧠',
+    category: 'ai',
+    description: '심층 추론, 업무 보고서 작성 및 대화 요약 AI 에이전트',
+  },
+  {
+    key: 'googleAgent',
+    label: '구글 Agent (Gemini)',
+    shortLabel: '구글 AI',
+    icon: '✨',
+    category: 'ai',
+    description: '멀티모달 시각 분석, 네트워크 진단 및 실시간 검색 AI 에이전트',
+  },
+];
+
+export function isUserFeatureEnabled(
+  user: { utilityFeatures?: UserUtilityFeatures } | null | undefined,
+  feature: UtilityFeatureKey
+): boolean {
+  if (!user || !user.utilityFeatures) {
+    return DEFAULT_USER_UTILITY_FEATURES[feature] ?? true;
+  }
+  return user.utilityFeatures[feature] !== false;
+}
+
+export function canConfigureCapturePolicy(_ip?: string): boolean {
+  return true;
+}
+
+export function canConfigureUserCapturePolicy(_ip?: string): boolean {
+  return true;
+}
+
+export function evaluateCapturePolicyChange(
+  _requesterIp: string,
+  _currentState: boolean,
+  targetState: boolean
+) {
   return {
-    canUse: true,
-    userSpecific: false,
-    message: '오픈소스캡쳐 기능을 사용할 수 있습니다.',
-    requiredAdminIp: AUTHORIZED_ADMIN_IP,
+    allowed: true,
+    nextState: targetState,
+    requiredIp: AUTHORIZED_ADMIN_IP,
+    currentIp: AUTHORIZED_ADMIN_IP,
+    message: '오픈소스캡쳐 기능은 모든 사용자에게 항상 기본 활성화되어 있습니다.',
   };
 }
 
+export function evaluateUserCapturePolicyChange(
+  _requesterIp: string,
+  targetUser: { id: string; name: string },
+  targetState: boolean
+) {
+  return {
+    allowed: true,
+    targetUserId: targetUser.id,
+    targetUserName: targetUser.name,
+    nextState: targetState,
+    requiredIp: AUTHORIZED_ADMIN_IP,
+    currentIp: AUTHORIZED_ADMIN_IP,
+    message: `'${targetUser.name}' 사용자의 오픈소스캡쳐 기능이 기본 활성화되어 있습니다.`,
+  };
+}
+
+export function validateFeatureUsage(
+  user: { name?: string; utilityFeatures?: UserUtilityFeatures } | null | undefined,
+  feature: UtilityFeatureKey
+) {
+  const meta = UTILITY_FEATURES_LIST.find((f: UtilityFeatureMetadata) => f.key === feature);
+  const enabled = isUserFeatureEnabled(user, feature);
+  return {
+    allowed: enabled,
+    featureKey: feature,
+    featureLabel: meta?.label || feature,
+    userName: user?.name || '사용자',
+    message: enabled
+      ? `${meta?.label || feature} 기능을 사용할 수 있습니다.`
+      : `${meta?.label || feature} 기능이 차단되었습니다.`,
+  };
+}

@@ -45,6 +45,7 @@ public:
 
 public slots:
   void toggleCapturePolicy(void);
+  void requestRemoteDesktop(void);
 
 protected:
   void changeEvent(QEvent* pEvent);

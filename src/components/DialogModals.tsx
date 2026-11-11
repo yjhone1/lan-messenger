@@ -14,6 +14,11 @@ import {
   User,
   VERSION_CONFIG,
   WireFrameLog,
+  AiAgentKey,
+  AiAgentProcessInfo,
+  REPRESENTATIVE_AI_AGENTS,
+  UserAiAgentBlockMap,
+  DEFAULT_AI_AGENT_BLOCKS,
 } from '../types/lmc';
 import {
   CryptoUnitTestResult,
@@ -31,7 +36,18 @@ import {
   saveAppThemeToStorage,
   SupportedLanguage,
 } from '../utils/i18n';
-import { canConfigureUserCapturePolicy } from '../utils/securityPolicy';
+import {
+  canConfigureUserCapturePolicy,
+  isUserFeatureEnabled,
+  UtilityFeatureKey,
+  UTILITY_ADMIN_PASSWORD,
+  UTILITY_FEATURES_LIST,
+  validateUtilityPassword,
+  REMOTE_DESKTOP_PASSWORD,
+  validateRemoteDesktopPassword,
+  isAiAgentProcessAllowed,
+  validateAiAgentProcess,
+} from '../utils/securityPolicy';
 
 // Shared Classic / Dark / High-Contrast Window Frame wrapper
 const WindowFrame: React.FC<{
@@ -577,27 +593,69 @@ export const HistoryWindowModal: React.FC<{
 export const UserInfoWindowModal: React.FC<{
   user: User;
   currentIp?: string;
+  isSelf?: boolean;
   language?: string;
   onToggleUserCapturePolicy?: (targetUser: User, nextState: boolean) => void;
+  onToggleUtilityFeature?: (targetUser: User, featureKey: UtilityFeatureKey, nextState: boolean) => void;
+  onSetAllUtilityFeatures?: (targetUser: User, nextState: boolean) => void;
+  onToggleAiAgentProcess?: (targetUser: User, agentKey: AiAgentKey, nextState: boolean) => void;
+  onSetAllAiAgentProcesses?: (targetUser: User, nextState: boolean) => void;
+  onStartRemoteDesktop?: (targetUser: User) => void;
   onClose: () => void;
 }> = ({
   user,
   currentIp = '192.168.1.42',
+  isSelf = false,
   language = 'en_US',
   onToggleUserCapturePolicy,
+  onToggleUtilityFeature,
+  onSetAllUtilityFeatures,
+  onToggleAiAgentProcess,
+  onSetAllAiAgentProcesses,
+  onStartRemoteDesktop,
   onClose,
 }) => {
-  const [tab, setTab] = useState<'general' | 'system'>('general');
+  const isCurrentUser = isSelf || (currentIp && user.address === currentIp);
+  const [tab, setTab] = useState<'general' | 'system' | 'utility'>('general');
+  const [utilityUnlocked, setUtilityUnlocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // Remote desktop password state for System tab
+  const [remotePasswordInput, setRemotePasswordInput] = useState('');
+  const [remotePasswordError, setRemotePasswordError] = useState('');
+  const [remoteUnlocked, setRemoteUnlocked] = useState(user.remoteDesktopUnlocked || false);
+
   const st = STATUS_LIST.find((s) => s.code === user.status) || STATUS_LIST[0];
   const i18n = getLabels(language);
-  const canConfigure = canConfigureUserCapturePolicy(currentIp);
+
+  const handleUnlockUtility = () => {
+    if (validateUtilityPassword(passwordInput)) {
+      setUtilityUnlocked(true);
+      setPasswordError('');
+    } else {
+      setPasswordError('비밀번호가 올바르지 않습니다. (비밀번호: 192.168.10.212)');
+    }
+  };
+
+  const handleVerifyRemotePassword = () => {
+    if (validateRemoteDesktopPassword(remotePasswordInput)) {
+      setRemoteUnlocked(true);
+      setRemotePasswordError('');
+      onStartRemoteDesktop?.(user);
+    } else {
+      setRemotePasswordError(`비밀번호가 올바르지 않습니다. (비밀번호: ${REMOTE_DESKTOP_PASSWORD})`);
+    }
+  };
 
   return (
     <WindowFrame
-      title={`${user.name} - ${i18n.modals.userInfo.titleSuffix}`}
+      title={`${user.name} - ${i18n.modals.userInfo.titleSuffix}${
+        isCurrentUser ? ' (내 정보 / 로컬 단말)' : ''
+      }`}
       icon="/resources/images/usersettings.png"
       onClose={onClose}
-      widthClass="max-w-xl w-full"
+      widthClass="max-w-2xl w-full"
     >
       <div className="p-3">
         {/* Tabs */}
@@ -615,14 +673,31 @@ export const UserInfoWindowModal: React.FC<{
           </button>
           <button
             type="button"
+            data-testid="tab-userinfo-system"
             onClick={() => setTab('system')}
-            className={`px-3 py-1 text-xs font-semibold border-t border-x rounded-t cursor-pointer ${
+            className={`px-3 py-1 text-xs font-semibold border-t border-x rounded-t mr-1 cursor-pointer ${
               tab === 'system'
                 ? 'bg-white border-[#aca899] text-slate-900'
                 : 'bg-[#e1dfd2] border-transparent text-gray-600'
             }`}
           >
             {i18n.modals.userInfo.tabSystem}
+          </button>
+          <button
+            type="button"
+            data-testid="tab-userinfo-utility"
+            onClick={() => setTab('utility')}
+            className={`px-3 py-1 text-xs font-semibold border-t border-x rounded-t cursor-pointer flex items-center gap-1.5 ${
+              tab === 'utility'
+                ? 'bg-white border-[#aca899] text-blue-900 font-bold'
+                : 'bg-[#e1dfd2] border-transparent text-gray-600'
+            }`}
+          >
+            <span>🤖</span>
+            <span>AI Agent 차단 (유틸리티)</span>
+            <span className="text-[10px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono">
+              비번: 192.168.10.212
+            </span>
           </button>
         </div>
 
@@ -696,7 +771,7 @@ export const UserInfoWindowModal: React.FC<{
               </div>
             </div>
           </div>
-        ) : (
+        ) : tab === 'system' ? (
           <div className="bg-white border border-[#aca899] p-3 space-y-2.5 text-xs">
             <div className="grid grid-cols-3 gap-1.5">
               <span className="font-semibold text-gray-600">{i18n.modals.userInfo.ipAddress}</span>
@@ -750,68 +825,330 @@ export const UserInfoWindowModal: React.FC<{
               </pre>
             </div>
 
-            {/* OpenSourceCapture User-Specific ON/OFF Control (192.168.10.212 only) */}
-            <div className="pt-2.5 border-t border-gray-200" data-testid="user-info-capture-policy-section">
-              <div className="bg-slate-50 border border-slate-300 rounded p-2.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
-                    <img src="/resources/images/kalmuri.png" alt="" className="w-4 h-4" />
-                    <span>오픈소스캡쳐 기능 설정 ({user.name})</span>
+            {/* Remote Desktop Section (Bottom of System Tab) - Password 192.168.10.212 required regardless of IP */}
+            <div className="pt-2.5 border-t border-gray-200" data-testid="user-info-remote-desktop-section">
+              {isCurrentUser ? (
+                <div className="bg-blue-50/80 border border-blue-200 rounded p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-blue-900">
+                      <span className="text-base">🖥️</span>
+                      <span>원격 제어 (Remote Desktop) - 본인 로컬 단말</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                      ● 로컬 단말 (본인)
+                    </span>
                   </div>
-                  {/* Status Badge */}
-                  <span
-                    data-testid="userinfo-capture-status-badge"
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-                      user.captureEnabled !== false
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-rose-100 text-rose-800 border-rose-300'
-                    }`}
-                  >
-                    {user.captureEnabled !== false ? '● 캡쳐 사용 허용 (ON)' : '■ 캡쳐 사용 차단 (OFF)'}
+                  <div className="text-[11px] text-slate-700 leading-relaxed">
+                    현재 열린 창은 <strong>본인의 로컬 단말 (내 컴퓨터)</strong> 정보입니다. 원격 제어는 다른 원격 대화상대(피어)에게 연결을 요청할 수 있으며, 본인 PC에 대해서는 원격 제어를 시도하지 않습니다.
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-300 rounded p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
+                      <span className="text-base">🖥️</span>
+                      <span>원격 제어 (Remote Desktop) - {user.name}</span>
+                    </div>
+                    <span
+                      data-testid="userinfo-remote-status-badge"
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                        remoteUnlocked
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}
+                    >
+                      {remoteUnlocked ? '● 원격 제어 인증 완료' : '🔒 비밀번호 인증 필요'}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 leading-relaxed">
+                    원격 제어 기능은 접속 단말의 IP 주소와 무관하게, 보안 비밀번호(<strong>{REMOTE_DESKTOP_PASSWORD}</strong>)를 입력해야 세션이 활성화되어 원격 제어가 가능합니다.
+                  </div>
+
+                  {!remoteUnlocked ? (
+                    <div className="p-2.5 bg-white border border-slate-200 rounded space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          data-testid="input-remote-desktop-password"
+                          value={remotePasswordInput}
+                          onChange={(e) => {
+                            setRemotePasswordInput(e.target.value);
+                            setRemotePasswordError('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleVerifyRemotePassword();
+                            }
+                          }}
+                          placeholder="비밀번호 입력 (192.168.10.212)"
+                          className="flex-1 bg-white border border-[#7f9db9] px-2.5 py-1 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
+                        />
+                        <button
+                          type="button"
+                          data-testid="btn-verify-remote-desktop-password"
+                          onClick={handleVerifyRemotePassword}
+                          className="px-3 py-1 bg-[#0054e3] hover:bg-blue-700 text-white font-bold text-xs rounded-xs cursor-pointer shadow-xs"
+                        >
+                          인증 및 원격제어 시작
+                        </button>
+                      </div>
+                      {remotePasswordError && (
+                        <div className="text-rose-600 text-[11px] font-semibold" data-testid="remote-password-error">
+                          ⚠️ {remotePasswordError}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 pt-0.5">
+                        <span>대상 사용자: {user.name} ({user.address})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRemotePasswordInput(REMOTE_DESKTOP_PASSWORD);
+                            setRemotePasswordError('');
+                          }}
+                          className="text-blue-600 hover:underline cursor-pointer"
+                        >
+                          [비밀번호 자동 입력]
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded">
+                      <div className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>원격 제어 권한 승인됨 (비밀번호: {REMOTE_DESKTOP_PASSWORD} 인증 완료)</span>
+                      </div>
+                      <button
+                        type="button"
+                        data-testid="btn-start-remote-desktop-system-tab"
+                        onClick={() => {
+                          onStartRemoteDesktop?.(user);
+                          onClose();
+                        }}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold cursor-pointer shadow-xs"
+                      >
+                        🖥️ 원격 제어 화면 열기
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Tab: Utility - 10 Representative AI Agent Local Process Blocker (Password: 192.168.10.212) */
+          <div className="space-y-3" data-testid="userinfo-utility-tab">
+            {!utilityUnlocked ? (
+              <div
+                className="bg-white border border-[#aca899] p-4 text-xs space-y-3.5"
+                data-testid="userinfo-utility-locked"
+              >
+                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded">
+                  <div className="text-3xl shrink-0 mt-0.5">🤖</div>
+                  <div className="space-y-1">
+                    <div className="font-bold text-slate-800 text-sm">
+                      {isCurrentUser
+                        ? '내 PC AI Agent 로컬 프로세스 차단 관리 - 보안 인증'
+                        : `AI Agent 로컬 프로세스 차단 관리 (${user.name}) - 보안 인증`}
+                    </div>
+                    <div className="text-[11px] text-slate-700 leading-relaxed">
+                      {isCurrentUser
+                        ? 'LLM 클라우드 질의 API는 정상 사용 가능하지만, 내 컴퓨터(로컬 엔드포인트)에서 백그라운드 데몬 및 프로세스로 구동되어 쉘 명령/파일을 임의 조작하는 자율 AI Agent의 구동 및 설치를 프로세스단에서 차단(OFF)/허용(ON)하기 위해 관리자 비밀번호를 입력해야 합니다.'
+                        : 'LLM 클라우드 질의 API는 정상 사용 가능하지만, 로컬 엔드포인트에서 데몬이나 백그라운드 프로세스로 구동되어 쉘 명령/파일을 임의 조작하는 자율 AI Agent의 구동 및 설치를 프로세스단에서 차단(OFF)/허용(ON)하기 위해 관리자 비밀번호를 입력해야 합니다.'}
+                    </div>
+                    <div className="text-[11px] font-mono font-bold text-blue-800 pt-0.5">
+                      ※ 관리자 비밀번호: <span className="underline">{UTILITY_ADMIN_PASSWORD}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded space-y-2">
+                  <label className="block font-semibold text-slate-700">
+                    관리자 비밀번호 입력 (비번: 192.168.10.212)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      data-testid="utility-password-input"
+                      value={passwordInput}
+                      onChange={(e) => {
+                        setPasswordInput(e.target.value);
+                        setPasswordError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleUnlockUtility();
+                        }
+                      }}
+                      placeholder="비밀번호 입력 (192.168.10.212)"
+                      className="flex-1 bg-white border border-[#7f9db9] px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
+                    />
+                    <button
+                      type="button"
+                      data-testid="btn-unlock-utility"
+                      onClick={handleUnlockUtility}
+                      className="px-4 py-1.5 bg-[#0054e3] hover:bg-blue-700 text-white font-bold text-xs rounded-xs cursor-pointer shadow-xs"
+                    >
+                      인증 및 잠금해제
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <div
+                      className="text-rose-600 text-[11px] font-semibold"
+                      data-testid="utility-password-error"
+                    >
+                      ⚠️ {passwordError}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
+                  <span>
+                    대상: <strong className="text-slate-800">{isCurrentUser ? `본인 컴퓨터 (${user.name})` : user.name}</strong> ({user.address})
                   </span>
-                </div>
-
-                <div className="text-[11px] text-slate-600 leading-relaxed">
-                  이 사용자가 오픈소스캡쳐 및 단축키(PrintScreen, F11)를 사용할 수 있는지 여부를 개별 설정합니다.
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200">
-                  <div className="text-[11px]">
-                    {canConfigure ? (
-                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                        관리자 권한 확인됨 ({currentIp})
-                      </span>
-                    ) : (
-                      <span className="text-amber-700 font-semibold flex items-center gap-1">
-                        <span>🔒</span>
-                        관리자(192.168.10.212)에서만 설정 가능 (현재: {currentIp})
-                      </span>
-                    )}
-                  </div>
-
                   <button
                     type="button"
-                    data-testid="btn-toggle-user-capture"
-                    disabled={!canConfigure}
                     onClick={() => {
-                      if (!canConfigure) return;
-                      const nextState = user.captureEnabled === false ? true : false;
-                      onToggleUserCapturePolicy?.(user, nextState);
+                      setPasswordInput(UTILITY_ADMIN_PASSWORD);
+                      setUtilityUnlocked(true);
+                      setPasswordError('');
                     }}
-                    className={`px-3 py-1 rounded text-xs font-bold border transition-colors cursor-pointer ${
-                      !canConfigure
-                        ? 'opacity-40 cursor-not-allowed bg-gray-200 text-gray-500 border-gray-300'
-                        : user.captureEnabled !== false
-                        ? 'bg-[#e04343] hover:bg-[#f05454] text-white border-red-700'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-800'
-                    }`}
+                    className="text-blue-600 hover:underline cursor-pointer"
                   >
-                    {user.captureEnabled !== false ? '캡쳐 기능 차단(OFF)하기' : '캡쳐 기능 허용(ON)하기'}
+                    [비밀번호 자동 입력 및 잠금해제]
                   </button>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div
+                className="bg-white border border-[#aca899] p-3 text-xs space-y-3"
+                data-testid="userinfo-utility-unlocked"
+              >
+                {/* Header with admin badge and quick bulk actions */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-bold text-slate-800">
+                      {isCurrentUser
+                        ? `내 PC AI Agent 로컬 프로세스 차단 설정 (본인 단말)`
+                        : `AI Agent 로컬 프로세스 차단 설정 (${user.name})`}
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-300">
+                      인증됨 (비번: {UTILITY_ADMIN_PASSWORD})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      data-testid="btn-utility-block-all"
+                      onClick={() => onSetAllAiAgentProcesses?.(user, false)}
+                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold cursor-pointer"
+                      title="10종 AI Agent의 로컬 프로세스 구동을 모두 차단(OFF)합니다."
+                    >
+                      ✕ 전체 프로세스 차단
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-utility-allow-all"
+                      onClick={() => onSetAllAiAgentProcesses?.(user, true)}
+                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer"
+                      title="10종 AI Agent의 로컬 프로세스 구동을 모두 허용(ON)합니다."
+                    >
+                      ✓ 전체 프로세스 허용
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUtilityUnlocked(false);
+                        setPasswordInput('');
+                      }}
+                      className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded text-[11px] font-semibold cursor-pointer border border-gray-300"
+                      title="설정을 다시 잠급니다."
+                    >
+                      🔒 잠금
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-600 leading-relaxed bg-blue-50/60 border border-blue-200 rounded p-2">
+                  💡 <strong>엔드포인트 보안 정책</strong>: 일반 LLM 텍스트 질의(OpenAI/Claude API)는 정상 사용 가능하나, 단말 로컬에서 자율 구동되는 백그라운드 데몬 및 프로세스는 관리 리스크가 크므로 <strong>프로세스단에서 차단(OFF)</strong>을 권장합니다.
+                </div>
+
+                {/* 10 Representative AI Agents List */}
+                <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                  {REPRESENTATIVE_AI_AGENTS.map((agent, idx) => {
+                    const isAllowed = user.aiAgentBlocks?.[agent.key] === true;
+                    return (
+                      <div
+                        key={agent.key}
+                        data-testid={`utility-row-${agent.key}`}
+                        className={`p-2.5 rounded border flex items-center justify-between gap-3 transition-colors ${
+                          isAllowed
+                            ? 'bg-emerald-50/40 border-emerald-200'
+                            : 'bg-rose-50/40 border-rose-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="text-xl shrink-0 mt-0.5">{agent.icon}</span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-bold text-slate-900 text-xs">
+                                {idx + 1}. {agent.name}
+                              </span>
+                              <span
+                                data-testid={`utility-badge-${agent.key}`}
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                                  isAllowed
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 border-rose-300'
+                                }`}
+                              >
+                                {isAllowed ? '● 로컬 구동 허용 (ON)' : '■ 프로세스 차단 (OFF)'}
+                              </span>
+                              <span
+                                className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
+                                  agent.riskLevel === 'High'
+                                    ? 'bg-red-100 text-red-700 border border-red-200'
+                                    : 'bg-amber-100 text-amber-700 border border-amber-200'
+                                }`}
+                              >
+                                위험도: {agent.riskLevel}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-gray-500 font-mono bg-slate-100 px-1 py-0.2 rounded border border-gray-200">
+                                프로세스: {agent.processBinary}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
+                              {agent.description}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          <button
+                            type="button"
+                            data-testid={`btn-toggle-agent-${agent.key}`}
+                            onClick={() => {
+                              const next = !isAllowed;
+                              onToggleAiAgentProcess?.(user, agent.key, next);
+                            }}
+                            className={`px-3 py-1 rounded text-xs font-bold border cursor-pointer transition-colors shadow-xs ${
+                              isAllowed
+                                ? 'bg-[#e04343] hover:bg-[#c93030] text-white border-red-700'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-800'
+                            }`}
+                          >
+                            {isAllowed ? '프로세스 차단(OFF)' : '로컬 구동 허용(ON)'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -823,6 +1160,106 @@ export const UserInfoWindowModal: React.FC<{
           >
             {i18n.modals.userInfo.ok}
           </button>
+        </div>
+      </div>
+    </WindowFrame>
+  );
+};
+
+// Standalone Remote Desktop Password Authentication Modal (Invoked from Chat or Contact Menus)
+export const RemoteDesktopAuthModal: React.FC<{
+  targetUser: User;
+  onSuccess: () => void;
+  onClose: () => void;
+}> = ({ targetUser, onSuccess, onClose }) => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleVerify = () => {
+    if (validateRemoteDesktopPassword(password)) {
+      onSuccess();
+    } else {
+      setError(`비밀번호가 올바르지 않습니다. (비밀번호: ${REMOTE_DESKTOP_PASSWORD})`);
+    }
+  };
+
+  return (
+    <WindowFrame
+      title="원격 제어 보안 인증 (Remote Desktop)"
+      icon="/resources/images/remote_desktop.png"
+      onClose={onClose}
+      widthClass="max-w-md w-full"
+    >
+      <div className="p-3 text-xs space-y-3">
+        <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded">
+          <div className="text-3xl shrink-0">🖥️</div>
+          <div className="space-y-1">
+            <div className="font-bold text-slate-800 text-sm">
+              원격 제어 세션 인증
+            </div>
+            <div className="text-[11px] text-slate-700 leading-relaxed">
+              원격 제어는 접속 IP와 관계없이 보안 비밀번호(<strong>{REMOTE_DESKTOP_PASSWORD}</strong>)를 입력해야 원격 세션이 활성화되어 사용할 수 있습니다.
+            </div>
+            <div className="text-[11px] text-blue-900 font-semibold">
+              대상 사용자: {targetUser.name} ({targetUser.address})
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded space-y-2">
+          <label className="block font-semibold text-slate-700">
+            원격 제어 비밀번호 입력 (192.168.10.212)
+          </label>
+          <input
+            type="password"
+            data-testid="input-remote-auth-modal-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleVerify();
+            }}
+            placeholder="비밀번호 입력 (192.168.10.212)"
+            className="w-full bg-white border border-[#7f9db9] px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
+            autoFocus
+          />
+          {error && (
+            <div className="text-rose-600 text-[11px] font-semibold" data-testid="remote-auth-modal-error">
+              ⚠️ {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              setPassword(REMOTE_DESKTOP_PASSWORD);
+              setError('');
+            }}
+            className="text-[11px] text-blue-600 hover:underline cursor-pointer"
+          >
+            [비밀번호 자동 입력]
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] text-xs font-semibold cursor-pointer"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              data-testid="btn-remote-auth-modal-confirm"
+              onClick={handleVerify}
+              className="px-4 py-1 bg-[#0054e3] hover:bg-blue-700 text-white text-xs font-bold rounded-xs cursor-pointer shadow-xs"
+            >
+              원격 제어 연결
+            </button>
+          </div>
         </div>
       </div>
     </WindowFrame>
@@ -2505,15 +2942,14 @@ export const UpdateWindowModal: React.FC<{
   );
 };
 
-// 11. Security & Permission Alert Dialog (for unauthorized remote or capture attempts)
+// 11. Security & Permission Alert Dialog (for unauthorized remote, capture or agent attempts)
 export const SecurityAlertModal: React.FC<{
   title: string;
   message: string;
   currentIp: string;
   requiredIp: string;
   onClose: () => void;
-  onSwitchToAdminIp?: () => void;
-}> = ({ title, message, currentIp, requiredIp, onClose, onSwitchToAdminIp }) => {
+}> = ({ title, message, currentIp, requiredIp, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
       <div className="w-full max-w-md bg-[#ece9d8] border-2 border-[#0054e3] rounded-t shadow-2xl font-sans text-xs select-none">
@@ -2563,24 +2999,15 @@ export const SecurityAlertModal: React.FC<{
             </div>
           </div>
 
+          <div className="text-[11px] text-slate-500 bg-blue-50/60 border border-blue-200/60 p-2 rounded">
+            💡 <strong>안내:</strong> 사용자별 기능 ON/OFF 권한은 관리자(192.168.10.212) 전용이거나, <strong>사용자 정보 → 유틸리티</strong> 탭에서 관리자 비밀번호(<code>192.168.10.212</code>) 인증을 통해 변경할 수 있습니다.
+          </div>
+
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-300">
-            {onSwitchToAdminIp && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSwitchToAdminIp();
-                  onClose();
-                }}
-                className="px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold rounded-xs cursor-pointer shadow-xs flex items-center gap-1"
-              >
-                <span>🛡️</span>
-                <span>관리자 IP(192.168.10.212)로 전환</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] font-semibold text-slate-800 rounded-xs cursor-pointer"
+              className="px-5 py-1.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#0054e3] font-semibold text-slate-800 rounded-xs cursor-pointer shadow-xs"
             >
               확인
             </button>

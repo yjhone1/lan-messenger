@@ -263,15 +263,8 @@ export function KalmuriCapture({
     areaFrame,
   ]);
 
-  // Main trigger capture action
+  // Main trigger capture action (unconditionally enabled for all users)
   const handleTriggerCaptureAction = () => {
-    if (!isCaptureEnabled) {
-      setCaptureToast({
-        message: '오픈소스캡쳐 사용 불가: 관리자(192.168.10.212)에 의해 오픈소스캡쳐 기능이 비활성화(차단)되어 있습니다.',
-        fileName: '사용 차단됨',
-      });
-      return;
-    }
 
     // If currently recording, stop it
     if (isRecording) {
@@ -684,7 +677,7 @@ export function KalmuriCapture({
           <div className="flex items-center gap-1.5 font-bold tracking-tight text-[11px]">
             <span>📸</span>
             <span>오픈소스캡쳐</span>
-            <span className="text-[10px] opacity-80 font-normal">v1.4.0.1</span>
+            <span className="text-[10px] opacity-80 font-normal">v1.4.0.3</span>
             {!isCaptureEnabled && (
               <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-bold">
                 차단됨(OFF)
@@ -714,33 +707,7 @@ export function KalmuriCapture({
 
         {/* Body Container */}
         <div className="p-2 space-y-2 bg-[#f5f4ee]">
-          {!isCaptureEnabled && (
-            <div className="bg-red-50 border border-red-300 rounded p-2 text-xs text-red-900 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-red-700">
-                <span>🔒</span>
-                <span>오픈소스캡쳐 사용이 차단되었습니다</span>
-              </div>
-              <p className="text-[11px] leading-tight text-red-800">
-                관리자(192.168.10.212) 정책에 의해 오픈소스캡쳐 사용이 비활성화되었습니다.
-              </p>
-              {currentIp === '192.168.10.212' ? (
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={() => onToggleCapturePolicy?.(true)}
-                    className="w-full py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded shadow-xs cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <span>🛡️</span>
-                    <span>관리자 권한: 오픈소스캡쳐 활성화(ON)하기</span>
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[10px] text-gray-600 pt-0.5">
-                  ※ ON/OFF 설정은 192.168.10.212에서만 변경할 수 있습니다. (현재 IP: {currentIp})
-                </p>
-              )}
-            </div>
-          )}
+
           {/* Top Big Card: Capture Area (캡쳐영역) */}
           <div className="relative">
             <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
@@ -936,13 +903,9 @@ export function KalmuriCapture({
             {/* Primary Action Button: 캡쳐 or REC */}
             <button
               type="button"
-              disabled={!isCaptureEnabled}
               onClick={handleTriggerCaptureAction}
-              title={!isCaptureEnabled ? '관리자(192.168.10.212) 정책에 의해 사용 차단됨' : undefined}
               className={`flex-1 h-9 px-3 rounded font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer ${
-                !isCaptureEnabled
-                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-75'
-                  : isRecording
+                isRecording
                   ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
                   : settings.format === 'MP4' ||
                     settings.format === 'GIF_ANIM' ||
@@ -951,12 +914,7 @@ export function KalmuriCapture({
                   : 'bg-[#0054e3] hover:bg-[#0046c7] text-white'
               }`}
             >
-              {!isCaptureEnabled ? (
-                <>
-                  <span className="text-sm">🔒</span>
-                  <span>사용 차단됨 (192.168.10.212 정책)</span>
-                </>
-              ) : isRecording ? (
+              {isRecording ? (
                 <>
                   <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
                   <span>
@@ -1001,7 +959,7 @@ export function KalmuriCapture({
             </button>
           </div>
 
-          {/* Admin Policy Bar & Status */}
+          {/* Policy & Status Footer */}
           <div className="pt-1.5 border-t border-gray-300 text-[10px] space-y-1">
             <div className="flex items-center justify-between text-gray-600">
               <span className="truncate">
@@ -1015,27 +973,16 @@ export function KalmuriCapture({
             {/* Policy Info row */}
             <div className="flex items-center justify-between pt-0.5 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
               <span className="flex items-center gap-1">
-                <span className={currentIp === '192.168.10.212' ? 'text-blue-700 font-bold' : 'text-gray-600'}>
-                  {currentIp === '192.168.10.212' ? '🛡️ 관리자(192.168.10.212)' : `👤 접속 IP: ${currentIp}`}
+                <span className="text-gray-700 font-medium">
+                  👤 단말 IP: {currentIp}
                 </span>
-                <span className={`px-1 py-0.2 rounded text-[9px] font-semibold ${isCaptureEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                  {isCaptureEnabled ? '캡쳐 ON' : '캡쳐 OFF'}
+                <span className="px-1 py-0.2 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  ● 캡쳐 기본 활성화
                 </span>
               </span>
-
-              {currentIp === '192.168.10.212' ? (
-                <button
-                  type="button"
-                  onClick={() => onToggleCapturePolicy?.(!isCaptureEnabled)}
-                  className="text-blue-700 hover:text-blue-900 font-bold hover:underline cursor-pointer"
-                >
-                  {isCaptureEnabled ? '[기능 차단(OFF)하기]' : '[기능 허용(ON)하기]'}
-                </button>
-              ) : (
-                <span className="text-gray-500 text-[9px]">
-                  (192.168.10.212에서만 ON/OFF 가능)
-                </span>
-              )}
+              <span className="text-emerald-700 text-[9px] font-semibold">
+                (랜메신저 설치 시 무제한 사용)
+              </span>
             </div>
           </div>
         </div>
@@ -2156,7 +2103,7 @@ function KalmuriSettingsModal({
                 <span className="text-3xl">📸</span>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    오픈소스캡쳐 v1.4.0.1
+                    오픈소스캡쳐 v1.4.0.3
                   </h3>
                   <p className="text-gray-500 text-xs">
                     단축키 한 번으로 화면 캡처 및 화면 녹화
@@ -2167,7 +2114,7 @@ function KalmuriSettingsModal({
               <div className="text-xs space-y-1 text-gray-700">
                 <p><b>구분:</b> 오픈소스 화면 캡처 & 화면 녹화 도구</p>
                 <p><b>라이선스:</b> 오픈소스 (개인/기업 누구나 무료)</p>
-                <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.1 완벽 통합 및 단축키 충돌 방지</p>
+                <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.3 완벽 통합 및 단축키 충돌 방지</p>
               </div>
 
               <div className="pt-2 border-t flex justify-between items-center">

@@ -16,8 +16,14 @@ import {
   StatusCode,
   User,
   UserCap,
+  UserUtilityFeatures,
+  DEFAULT_USER_UTILITY_FEATURES,
   VERSION_CONFIG,
   WireFrameLog,
+  AiAgentKey,
+  UserAiAgentBlockMap,
+  DEFAULT_AI_AGENT_BLOCKS,
+  REPRESENTATIVE_AI_AGENTS,
 } from './types/lmc';
 import {
   buildXmlMessage,
@@ -36,6 +42,7 @@ import {
   ChatRoomWindowModal,
   CryptoInspectorModal,
   HistoryWindowModal,
+  RemoteDesktopAuthModal,
   RemoteViewerWindowModal,
   SecurityAlertModal,
   SettingsDialogModal,
@@ -49,6 +56,15 @@ import {
   evaluateCaptureUsage,
   evaluateUserCapturePolicyChange,
   evaluateUserCaptureUsage,
+  isUserFeatureEnabled,
+  validateFeatureUsage,
+  UtilityFeatureKey,
+  UTILITY_ADMIN_PASSWORD,
+  UTILITY_FEATURES_LIST,
+  REMOTE_DESKTOP_PASSWORD,
+  validateRemoteDesktopPassword,
+  isAiAgentProcessAllowed,
+  validateAiAgentProcess,
 } from './utils/securityPolicy';
 import {
   getAppThemeConfig,
@@ -318,9 +334,10 @@ export function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [inspectingUser, setInspectingUser] = useState<User | null>(null);
   const [remoteDesktopPeer, setRemoteDesktopPeer] = useState<User | null>(null);
+  const [remoteDesktopAuthTarget, setRemoteDesktopAuthTarget] = useState<User | null>(null);
   const [showKalmuriCapture, setShowKalmuriCapture] = useState(true);
 
-  // Security alert modal state for unauthorized remote or capture requests
+  // Security alert modal state
   const [securityAlert, setSecurityAlert] = useState<{
     title: string;
     message: string;
@@ -328,56 +345,17 @@ export function App() {
     requiredIp: string;
   } | null>(null);
 
-  // Fast switch local IP between normal (192.168.1.42) and administrator (192.168.10.212)
-  const handleSwitchLocalIp = (nextIp: string) => {
-    setLocalUser((prev) => ({
-      ...prev,
-      address: nextIp,
-      id: `LOCAL-NODE-${nextIp.replace(/\./g, '-')}`,
-      about:
-        nextIp === AUTHORIZED_ADMIN_IP
-          ? 'Authorized Administrator — 192.168.10.212 (Remote & Capture Policy Admin)'
-          : 'Systems Engineer — OpenSSL 3.0.13 / Qt 6.6 workstation',
-    }));
-    triggerTrayBalloon(
-      '로컬 IP 및 권한 전환',
-      `현재 클라이언트 IP가 ${nextIp} (${nextIp === AUTHORIZED_ADMIN_IP ? '관리자 권한 보유' : '일반 권한'})로 변경되었습니다.`
-    );
-  };
-
-  // Safe Remote Desktop request initiator enforcing 192.168.10.212
+  // Remote Desktop request initiator requiring password '192.168.10.212' regardless of IP
   const handleRequestRemoteDesktop = (target: User) => {
-    const check = validateRemoteDesktopRequest(localUser.address, target.name);
-    if (!check.allowed) {
-      setSecurityAlert({
-        title: '원격 제어 요청 불가 (보안 권한 제한)',
-        message: check.message,
-        currentIp: check.currentIp,
-        requiredIp: check.requiredIp,
-      });
-      return;
+    if (target.remoteDesktopUnlocked) {
+      setRemoteDesktopPeer(target);
+    } else {
+      setRemoteDesktopAuthTarget(target);
     }
-    setRemoteDesktopPeer(target);
   };
 
-  // Safe OpenSourceCapture opener checking admin policy (global and user-specific)
+  // OpenSourceCapture is fully usable by all users without administrative restrictions
   const handleOpenCapture = () => {
-    const check = evaluateUserCaptureUsage(localUser, settings.captureFeatureEnabled);
-    if (!check.canUse) {
-      setSecurityAlert({
-        title: check.userSpecific
-          ? '오픈소스캡쳐 사용 불가 (사용자별 차단됨)'
-          : '오픈소스캡쳐 사용 불가 (전체 차단됨)',
-        message: `${check.message}\n\n${
-          check.userSpecific
-            ? `현재 사용자(${localUser.name})의 캡쳐 사용 권한은 관리자(${AUTHORIZED_ADMIN_IP})가 '사용자 정보 -> 시스템 정보'에서 허용(ON)해야 사용할 수 있습니다.`
-            : `오픈소스캡쳐 기능을 사용하려면 관리자(${AUTHORIZED_ADMIN_IP})가 설정을 활성화해야 합니다.`
-        }`,
-        currentIp: localUser.address,
-        requiredIp: check.requiredAdminIp,
-      });
-      return;
-    }
     setShowKalmuriCapture(true);
   };
 
@@ -439,6 +417,170 @@ export function App() {
     triggerTrayBalloon(
       '사용자별 캡쳐 권한 변경',
       result.message
+    );
+  };
+
+  // Safe User-Specific Utility Feature Toggler (원격제어, 캡쳐, Codex, Claude, Google Agent)
+  const handleToggleUserUtilityFeature = (
+    targetUser: User,
+    featureKey: UtilityFeatureKey,
+    nextEnabled: boolean
+  ) => {
+    const currentFeatures = targetUser.utilityFeatures || { ...DEFAULT_USER_UTILITY_FEATURES };
+    const updatedFeatures: UserUtilityFeatures = {
+      ...currentFeatures,
+      [featureKey]: nextEnabled,
+    };
+
+    const updatedUserProps = {
+      utilityFeatures: updatedFeatures,
+      ...(featureKey === 'screenCapture' ? { captureEnabled: nextEnabled } : {}),
+    };
+
+    setPeers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? { ...u, ...updatedUserProps } : u))
+    );
+
+    if (localUser.id === targetUser.id) {
+      setLocalUser((prev) => ({ ...prev, ...updatedUserProps }));
+    }
+
+    setInspectingUser((prev) =>
+      prev && prev.id === targetUser.id ? { ...prev, ...updatedUserProps } : prev
+    );
+
+    const featMeta = UTILITY_FEATURES_LIST.find((f: { key: string }) => f.key === featureKey);
+    triggerTrayBalloon(
+      '유틸리티 기능 권한 변경',
+      `'${targetUser.name}' 사용자의 [${featMeta?.label || featureKey}] 기능이 ${
+        nextEnabled ? '허용(ON)' : '차단(OFF)'
+      }되었습니다.`
+    );
+  };
+
+  // User-Specific AI Agent Process Toggler (10 Representative AI Agents)
+  const handleToggleAiAgentProcess = (
+    targetUser: User,
+    agentKey: AiAgentKey,
+    nextAllowed: boolean
+  ) => {
+    const currentBlocks = targetUser.aiAgentBlocks || { ...DEFAULT_AI_AGENT_BLOCKS };
+    const updatedBlocks: UserAiAgentBlockMap = {
+      ...currentBlocks,
+      [agentKey]: nextAllowed,
+    };
+
+    const updatedUserProps = {
+      aiAgentBlocks: updatedBlocks,
+    };
+
+    setPeers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? { ...u, ...updatedUserProps } : u))
+    );
+
+    if (localUser.id === targetUser.id) {
+      setLocalUser((prev) => ({ ...prev, ...updatedUserProps }));
+    }
+
+    setInspectingUser((prev) =>
+      prev && prev.id === targetUser.id ? { ...prev, ...updatedUserProps } : prev
+    );
+
+    const agentMeta = REPRESENTATIVE_AI_AGENTS.find((a) => a.key === agentKey);
+    triggerTrayBalloon(
+      'AI Agent 프로세스 정책 변경',
+      `'${targetUser.name}' 사용자의 '${agentMeta?.name || agentKey}' (${agentMeta?.processBinary}) 프로세스가 ${
+        nextAllowed ? '로컬 구동 허용(ON)' : '프로세스단 차단(OFF)'
+      }되었습니다.`
+    );
+  };
+
+  // User-Specific AI Agent Batch Setter (All Blocked / All Allowed)
+  const handleSetAllAiAgentProcesses = (targetUser: User, nextAllowed: boolean) => {
+    const updatedBlocks: UserAiAgentBlockMap = {
+      autogpt: nextAllowed,
+      babyagi: nextAllowed,
+      devin: nextAllowed,
+      metagpt: nextAllowed,
+      crewai: nextAllowed,
+      autogen: nextAllowed,
+      claudeComputerUse: nextAllowed,
+      openaiOperator: nextAllowed,
+      agentgpt: nextAllowed,
+      chatdev: nextAllowed,
+    };
+
+    const updatedUserProps = {
+      aiAgentBlocks: updatedBlocks,
+    };
+
+    setPeers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? { ...u, ...updatedUserProps } : u))
+    );
+
+    if (localUser.id === targetUser.id) {
+      setLocalUser((prev) => ({ ...prev, ...updatedUserProps }));
+    }
+
+    setInspectingUser((prev) =>
+      prev && prev.id === targetUser.id ? { ...prev, ...updatedUserProps } : prev
+    );
+
+    triggerTrayBalloon(
+      'AI Agent 프로세스 일괄 설정',
+      `'${targetUser.name}' 사용자의 10종 AI Agent 로컬 프로세스가 모두 ${
+        nextAllowed ? '일괄 허용(ON)' : '일괄 차단(OFF)'
+      }되었습니다.`
+    );
+  };
+
+  // AI Agent (Codex, Claude, Google) Trigger: LLM usage is allowed; local daemon status is reported
+  const handleTriggerAgent = (
+    agentKey: 'codexAgent' | 'claudeAgent' | 'googleAgent',
+    peer: User
+  ) => {
+    let agentName = 'AI Agent';
+    let agentResponse = '';
+
+    if (agentKey === 'codexAgent') {
+      agentName = 'Codex Agent';
+      const isDaemonAllowed = isAiAgentProcessAllowed(localUser, 'openaiOperator');
+      agentResponse = `[Codex AI 개발 지원 - LLM Cloud API]\n// 로컬 데몬(operator-daemon / codex-runner) 구동 상태: ${
+        isDaemonAllowed ? '구동 허용(ON)' : '프로세스단 안전 차단(OFF)'
+      }\n\nvoid diagnoseNodeSession(const QString& targetIp) {\n    qDebug() << "[Codex] Interop test to:" << targetIp << "(${peer.name})";\n    qDebug() << "[Codex] OpenSSL Stack:" << "${peer.opensslVersion}";\n    qDebug() << "[Codex] RSA Bits:" << ${peer.rsaBits} << "| OAEP SHA-1 Digest";\n}`;
+    } else if (agentKey === 'claudeAgent') {
+      agentName = '클로드 Agent';
+      const isDaemonAllowed = isAiAgentProcessAllowed(localUser, 'claudeComputerUse');
+      agentResponse = `[Claude AI 분석 리포트 - LLM Cloud API]\n// 로컬 OS 제어 데몬(claude-computer-use) 구동 상태: ${
+        isDaemonAllowed ? '구동 허용(ON)' : '프로세스단 안전 차단(OFF)'
+      }\n상대 노드: ${peer.name} (${peer.address})\n운영체제: ${peer.osVersionDetail || peer.osName}\n암호화 규격: RSA-${peer.rsaBits} + AES-256-CBC\n\n현재 대화 세션은 v1.4.0.3 보안 권한 정책에 따라 정상 인증되었습니다.`;
+    } else if (agentKey === 'googleAgent') {
+      agentName = '구글 Agent (Gemini)';
+      agentResponse = `[Google Gemini AI 분석 - Cloud API]\n🌐 LAN Messenger v1.4.0.3 노드 상태: 정상 (${peer.status})\n📡 엔드포인트: ${peer.address}:50000 (${peer.hostName})\n📸 오픈소스캡쳐 및 원격 제어 세션이 준비되었습니다.`;
+    }
+
+    const aiMsg: ChatMessage = {
+      id: `agent-${Date.now()}`,
+      type: 'message',
+      senderId: `AGENT-${agentKey.toUpperCase()}`,
+      senderName: `🤖 ${agentName}`,
+      recipientId: localUser.id,
+      text: agentResponse,
+      timestamp: Date.now(),
+      protocolMode: settings.protocolMode,
+      wireHeader: settings.protocolMode === 'Legacy v1.0' ? 'MESSAG' : 'MSGv30',
+      xmlPayload: '',
+      encryptedHex: '',
+    };
+
+    setConversations((prev) => ({
+      ...prev,
+      [peer.id]: [...(prev[peer.id] || []), aiMsg],
+    }));
+
+    triggerTrayBalloon(
+      `${agentName} 응답 도착`,
+      `[${agentName}]이(가) 대화창에 분석 정보를 제공했습니다.`
     );
   };
 
@@ -1302,31 +1444,19 @@ export function App() {
             </span>
           </button>
 
-          {/* Quick IP Switcher & Security Authority Badge */}
+          {/* Node IP & Security Authority Badge (No artificial IP switcher in production) */}
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border border-white/20 bg-black/25 text-white">
             <span className="opacity-75">내 IP:</span>
             <span className="font-mono font-bold text-amber-300">{localUser.address}</span>
             {localUser.address === AUTHORIZED_ADMIN_IP ? (
-              <span className="text-[9px] bg-amber-400 text-slate-900 font-bold px-1 rounded">
-                관리자 (원격/캡쳐 권한)
+              <span className="text-[9px] bg-amber-400 text-slate-900 font-bold px-1.5 py-0.2 rounded shadow-xs">
+                관리자 (192.168.10.212 전권 보유)
               </span>
             ) : (
               <span className="text-[9px] bg-slate-300 text-slate-800 font-medium px-1 rounded">
-                일반 IP (권한 제한)
+                클라이언트 노드
               </span>
             )}
-            <button
-              type="button"
-              onClick={() =>
-                handleSwitchLocalIp(
-                  localUser.address === AUTHORIZED_ADMIN_IP ? '192.168.1.42' : AUTHORIZED_ADMIN_IP
-                )
-              }
-              className="text-[10px] text-amber-200 hover:text-white underline ml-1 cursor-pointer"
-              title="원격제어 및 오픈소스캡쳐 권한 테스트를 위해 IP를 즉시 전환합니다."
-            >
-              {localUser.address === AUTHORIZED_ADMIN_IP ? '[192.168.1.42로 전환]' : '[192.168.10.212로 전환]'}
-            </button>
           </div>
 
           {/* Kalmuri Screen Capture Launch Button */}
@@ -1579,6 +1709,18 @@ export function App() {
                   <span className="text-sm">📸</span>
                   <span>{i18n.mainWindow.kalmuriCapture}</span>
                 </button>
+                <button
+                  type="button"
+                  data-testid="menu-item-my-user-info"
+                  onClick={() => {
+                    setInspectingUser(localUser);
+                    setActiveMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer font-medium text-blue-900"
+                >
+                  <img src="/resources/images/usersettings.png" alt="" className="w-4 h-4" />
+                  <span>내 정보 및 시스템 유틸리티...</span>
+                </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
                   type="button"
@@ -1660,6 +1802,16 @@ export function App() {
                   <span className="font-bold text-sm text-slate-900 truncate">
                     {localUser.name}
                   </span>
+                  <button
+                    type="button"
+                    data-testid="btn-open-my-user-info"
+                    onClick={() => setInspectingUser(localUser)}
+                    title="내 시스템 정보 및 AI Agent 차단 유틸리티 열기"
+                    className="ml-auto text-[11px] px-2 py-0.5 bg-[#e1dfd2] hover:bg-[#d5d2c3] border border-[#7f9db9] rounded-xs font-semibold text-slate-800 flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    <img src="/resources/images/usersettings.png" alt="" className="w-3.5 h-3.5" />
+                    <span>내 정보 (유틸리티)</span>
+                  </button>
                 </div>
 
                 <div className="pl-7 text-[11px] text-gray-600">
@@ -2063,6 +2215,7 @@ export function App() {
                 onOpenHistory={() => setShowHistoryModal(true)}
                 onOpenTransfers={() => setShowTransfersModal(true)}
                 onToggleProtocolMode={handleToggleProtocolMode}
+                onTriggerAgent={handleTriggerAgent}
                 onSimulateIncomingMessage={(pid) => {
                   const target = peers.find((p) => p.id === pid);
                   if (target) {
@@ -2223,9 +2376,29 @@ export function App() {
         <UserInfoWindowModal
           user={inspectingUser}
           currentIp={localUser.address}
+          isSelf={inspectingUser.id === localUser.id}
           language={settings.language}
-          onToggleUserCapturePolicy={handleToggleUserCapturePolicy}
+          onToggleAiAgentProcess={handleToggleAiAgentProcess}
+          onSetAllAiAgentProcesses={handleSetAllAiAgentProcesses}
+          onStartRemoteDesktop={(target) => {
+            setRemoteDesktopPeer(target);
+          }}
           onClose={() => setInspectingUser(null)}
+        />
+      )}
+
+      {remoteDesktopAuthTarget && (
+        <RemoteDesktopAuthModal
+          targetUser={remoteDesktopAuthTarget}
+          onSuccess={() => {
+            const target = remoteDesktopAuthTarget;
+            setPeers((prev) =>
+              prev.map((u) => (u.id === target.id ? { ...u, remoteDesktopUnlocked: true } : u))
+            );
+            setRemoteDesktopPeer(target);
+            setRemoteDesktopAuthTarget(null);
+          }}
+          onClose={() => setRemoteDesktopAuthTarget(null)}
         />
       )}
 
@@ -2309,7 +2482,6 @@ export function App() {
           currentIp={securityAlert.currentIp}
           requiredIp={securityAlert.requiredIp}
           onClose={() => setSecurityAlert(null)}
-          onSwitchToAdminIp={() => handleSwitchLocalIp(AUTHORIZED_ADMIN_IP)}
         />
       )}
     </div>

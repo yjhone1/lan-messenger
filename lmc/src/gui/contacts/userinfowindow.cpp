@@ -25,6 +25,8 @@
 #include "userinfowindow.h"
 #include "capture/capturewindow.h"
 #include <QMessageBox>
+#include <QNetworkInterface>
+#include <QInputDialog>
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget* parent)
     : QDialog(parent) {
@@ -117,19 +119,20 @@ void lmcUserInfoWindow::setUIText(void) {
 }
 
 void lmcUserInfoWindow::toggleCapturePolicy(void) {
-  QString userAddr = userInfo.data(XN_ADDRESS);
-  if (userAddr.isEmpty())
-    return;
+  QMessageBox::information(this, tr("오픈소스캡쳐 안내"),
+    tr("오픈소스캡쳐 기능은 v1.4.0.3에서 모든 사용자에게 항상 기본 활성화되어 있습니다."));
+}
 
-  QString localIp = pSettings ? pSettings->ipAddress() : QString();
-  if (localIp != "192.168.10.212") {
-    QMessageBox::warning(this, tr("보안 권한 제한"),
-      tr("사용자별 캡쳐 기능 ON/OFF 설정은 관리자 IP(192.168.10.212)에서만 가능합니다."));
+void lmcUserInfoWindow::requestRemoteDesktop(void) {
+  bool ok = false;
+  QString pass = QInputDialog::getText(this, tr("원격 제어 보안 인증"),
+    tr("원격 제어를 시작하려면 비밀번호(192.168.10.212)를 입력하세요:"), QLineEdit::Password, QString(), &ok);
+  if (!ok || pass != "192.168.10.212") {
+    QMessageBox::warning(this, tr("원격 제어 인증 실패"),
+      tr("비밀번호가 올바르지 않습니다. (비밀번호: 192.168.10.212)"));
     return;
   }
 
-  bool current = lmcCaptureWindow::isUserCaptureEnabled(userAddr);
-  bool next = !current;
-  lmcCaptureWindow::setUserCaptureEnabled(userAddr, next, localIp);
-  setUIText();
+  QMessageBox::information(this, tr("원격 제어 승인"),
+    tr("원격 제어 권한이 인증되었습니다. 원격 데스크톱 세션을 연결합니다."));
 }

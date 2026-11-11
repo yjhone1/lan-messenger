@@ -35,13 +35,13 @@
 #define IDA_COMPANY "lmc"
 #endif
 //	Canonical release version synchronized across CMake, NSIS, and C++ runtime.
-#define LMC_APP_VERSION "1.4.0.1"
+#define LMC_APP_VERSION "1.4.0.3"
 #ifndef IDA_VERSION
 #define IDA_VERSION LMC_APP_VERSION
 #endif
 #define IDA_DESCRIPTION "LAN Messenger is a free peer-to-peer messaging application for intra-network communication " \
                         "and does not require a server.\n"                                                            \
-                        "Version 1.4.0.1 (based on v1.2.39) adds OpenSourceCapture Screen Capture & Video Recording, OpenSSL 3.0 <-> 1.0 Legacy Compatibility, and Remote Desktop Control."
+                        "Version 1.4.0.3 adds Utility Control Tab (Pass: 192.168.10.212), Per-User Remote, OpenSourceCapture, Codex Agent, Claude Agent, and Google Gemini Agent Governance."
 #define IDA_COPYRIGHT "Copyright (C) 2010-2016 Qualia Digital Solutions."
 #define IDA_CONTACT "lanmsngr@gmail.com"
 #define IDA_DOMAIN "https://github.com/yjhone1/lan-messenger"
