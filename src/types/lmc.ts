@@ -22,7 +22,8 @@ export type AiAgentKey =
   | 'claudeComputerUse'
   | 'openaiOperator'
   | 'agentgpt'
-  | 'chatdev';
+  | 'chatdev'
+  | 'opencode';
 
 export type UserAiAgentBlockMap = Record<AiAgentKey, boolean>;
 
@@ -127,6 +128,15 @@ export const REPRESENTATIVE_AI_AGENTS: AiAgentProcessInfo[] = [
     description: '가상 소프트웨어 개발사 시뮬레이션, 로컬 컴파일러 및 테스트 환경 자율 구동',
     icon: '💻',
   },
+  {
+    key: 'opencode',
+    name: 'OpenCode',
+    processBinary: 'opencode.exe / opencode-cli / opencode',
+    category: 'coding',
+    riskLevel: 'High',
+    description: '터미널 기반 오픈소스 자율 코딩 에이전트, 로컬 파일 수정 및 쉘 명령어 자율 실행',
+    icon: '⌨️',
+  },
 ];
 
 export const DEFAULT_AI_AGENT_BLOCKS: UserAiAgentBlockMap = {
@@ -140,6 +150,7 @@ export const DEFAULT_AI_AGENT_BLOCKS: UserAiAgentBlockMap = {
   openaiOperator: false,
   agentgpt: false,
   chatdev: false,
+  opencode: false,
 };
 
 export interface UserUtilityFeatures {

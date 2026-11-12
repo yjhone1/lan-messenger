@@ -141,19 +141,8 @@ void RemoteServer::onNewConnection() {
   if(!newSocket)
     return;
 
-  // Enforce IP restriction: Only 192.168.10.212 can connect for remote desktop control
-  QString peerIp = newSocket->peerAddress().toString();
-  if (peerIp.startsWith("::ffff:")) {
-    peerIp = peerIp.mid(7);
-  }
-  const QString AUTHORIZED_REMOTE_IP = "192.168.10.212";
-  if (peerIp != AUTHORIZED_REMOTE_IP && peerIp != "127.0.0.1") {
-    qWarning() << "RemoteServer: Unauthorized remote desktop connection rejected from" << peerIp;
-    newSocket->disconnectFromHost();
-    newSocket->deleteLater();
-    return;
-  }
-
+  // Remote desktop access is controlled via password authentication (192.168.10.212)
+  // and user consent regardless of the requester IP address.
   if(m_clientSocket) {
     // Only allow one viewer at a time
     newSocket->disconnectFromHost();

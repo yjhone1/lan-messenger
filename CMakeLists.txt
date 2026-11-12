@@ -32,6 +32,10 @@ if(WIN32)
     # win32-msvc mkspec defines UNICODE/_UNICODE (TCHAR is wchar_t); the code
     # relies on it (qtlockedfile_win.cpp, shared.cpp getLogonName).
     add_compile_definitions(UNICODE _UNICODE)
+    option(LMC_WIN7_COMPAT "Target Windows 7 (_WIN32_WINNT=0x0601) API baseline" OFF)
+    if(LMC_WIN7_COMPAT)
+        add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
+    endif()
 endif()
 
 if(MSVC)

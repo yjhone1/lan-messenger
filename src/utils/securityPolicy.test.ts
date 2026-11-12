@@ -61,8 +61,8 @@ test('validateUtilityPassword unlocks Utility Tab with password 192.168.10.212',
   assert.equal(validateUtilityPassword(''), false);
 });
 
-test('REPRESENTATIVE_AI_AGENTS contains the 10 representative autonomous agents', () => {
-  assert.equal(REPRESENTATIVE_AI_AGENTS.length, 10);
+test('REPRESENTATIVE_AI_AGENTS contains the 11 representative autonomous agents including opencode', () => {
+  assert.equal(REPRESENTATIVE_AI_AGENTS.length, 11);
 
   const keys: AiAgentKey[] = [
     'autogpt',
@@ -75,6 +75,7 @@ test('REPRESENTATIVE_AI_AGENTS contains the 10 representative autonomous agents'
     'openaiOperator',
     'agentgpt',
     'chatdev',
+    'opencode',
   ];
 
   keys.forEach((k) => {
@@ -94,6 +95,7 @@ test('isAiAgentProcessAllowed and validateAiAgentProcess enforce process-level b
       ...DEFAULT_AI_AGENT_BLOCKS,
       autogpt: false,       // 차단(OFF)
       devin: false,         // 차단(OFF)
+      opencode: false,      // 차단(OFF)
       openaiOperator: true, // 허용(ON)
     },
   };
@@ -101,6 +103,7 @@ test('isAiAgentProcessAllowed and validateAiAgentProcess enforce process-level b
   // Blocked agents
   assert.equal(isAiAgentProcessAllowed(sampleUser as User, 'autogpt'), false);
   assert.equal(isAiAgentProcessAllowed(sampleUser as User, 'devin'), false);
+  assert.equal(isAiAgentProcessAllowed(sampleUser as User, 'opencode'), false);
 
   const autogptCheck = validateAiAgentProcess(sampleUser as User, 'autogpt');
   assert.equal(autogptCheck.allowed, false);
@@ -108,6 +111,11 @@ test('isAiAgentProcessAllowed and validateAiAgentProcess enforce process-level b
   assert.match(autogptCheck.message, /프로세스 실행 차단/);
   assert.match(autogptCheck.message, /AutoGPT/);
   assert.match(autogptCheck.message, /192\.168\.10\.212/);
+
+  const opencodeCheck = validateAiAgentProcess(sampleUser as User, 'opencode');
+  assert.equal(opencodeCheck.allowed, false);
+  assert.equal(opencodeCheck.processBinary, 'opencode.exe / opencode-cli / opencode');
+  assert.match(opencodeCheck.message, /OpenCode/);
 
   // Allowed agent
   assert.equal(isAiAgentProcessAllowed(sampleUser as User, 'openaiOperator'), true);

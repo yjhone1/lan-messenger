@@ -589,6 +589,7 @@ void lmcChatWindow::createToolBar(void) {
   pRightBar->setLayoutDirection(Qt::RightToLeft);
   ui.toolBarLayout->addWidget(pRightBar);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
   pHistoryAction = ActionHelper::createAction(pRightBar, "&History", this, &lmcChatWindow::btnHistory_clicked,
                                               QIcon(QPixmap(IDR_HISTORY, "PNG")),
                                               QKeySequence(QKeyCombination(Qt::ControlModifier, Qt::Key_H)));
@@ -596,6 +597,15 @@ void lmcChatWindow::createToolBar(void) {
                                                &lmcChatWindow::btnTransfers_clicked,
                                                QIcon(QPixmap(IDR_TRANSFER, "PNG")),
                                                QKeySequence(QKeyCombination(Qt::ControlModifier, Qt::Key_J)));
+#else
+  pHistoryAction = ActionHelper::createAction(pRightBar, "&History", this, &lmcChatWindow::btnHistory_clicked,
+                                              QIcon(QPixmap(IDR_HISTORY, "PNG")),
+                                              QKeySequence(static_cast<int>(Qt::CTRL) | static_cast<int>(Qt::Key_H)));
+  pTransferAction = ActionHelper::createAction(pRightBar, "File &Transfers", this,
+                                               &lmcChatWindow::btnTransfers_clicked,
+                                               QIcon(QPixmap(IDR_TRANSFER, "PNG")),
+                                               QKeySequence(static_cast<int>(Qt::CTRL) | static_cast<int>(Qt::Key_J)));
+#endif
   pProtocolModeAction = ActionHelper::createAction(pRightBar, "Legacy v1.0", this,
                                                    &lmcChatWindow::btnProtocolMode_clicked,
                                                    QIcon(QPixmap(IDR_NETWORKSET, "PNG")));

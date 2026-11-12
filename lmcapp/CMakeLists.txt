@@ -1,4 +1,5 @@
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Network Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Network Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network Widgets)
 
 # qtlockedfile*.cpp are not compiled standalone: they are textually included
 # into qtlocalpeer.cpp inside the QtLP_Private namespace
@@ -21,13 +22,15 @@ target_include_directories(lmcapp
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 
-target_compile_definitions(lmcapp PRIVATE
-    QT_DISABLE_DEPRECATED_BEFORE=0x060000
-)
+if(QT_VERSION_MAJOR EQUAL 6)
+    target_compile_definitions(lmcapp PRIVATE
+        QT_DISABLE_DEPRECATED_BEFORE=0x060000
+    )
+endif()
 
 target_link_libraries(lmcapp
     PUBLIC
-        Qt6::Core
-        Qt6::Network
-        Qt6::Widgets
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Network
+        Qt${QT_VERSION_MAJOR}::Widgets
 )

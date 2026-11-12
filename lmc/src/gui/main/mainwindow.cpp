@@ -710,6 +710,7 @@ void lmcMainWindow::createMainMenu(void) {
                                              QIcon(QPixmap(IDR_TOOLS, "PNG")),
                                              QKeySequence(Qt::Key_Print));
   pToolsMenu->addSeparator();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
   historyAction = ActionHelper::createAction(pToolsMenu, "&History", this,
                                              &lmcMainWindow::trayHistoryAction_triggered,
                                              QIcon(QPixmap(IDR_HISTORY, "PNG")),
@@ -718,6 +719,16 @@ void lmcMainWindow::createMainMenu(void) {
                                               &lmcMainWindow::trayFileAction_triggered,
                                               QIcon(QPixmap(IDR_TRANSFER, "PNG")),
                                               QKeySequence(QKeyCombination(Qt::ControlModifier, Qt::Key_J)));
+#else
+  historyAction = ActionHelper::createAction(pToolsMenu, "&History", this,
+                                             &lmcMainWindow::trayHistoryAction_triggered,
+                                             QIcon(QPixmap(IDR_HISTORY, "PNG")),
+                                             QKeySequence(static_cast<int>(Qt::CTRL) | static_cast<int>(Qt::Key_H)));
+  transferAction = ActionHelper::createAction(pToolsMenu, "File &Transfers", this,
+                                              &lmcMainWindow::trayFileAction_triggered,
+                                              QIcon(QPixmap(IDR_TRANSFER, "PNG")),
+                                              QKeySequence(static_cast<int>(Qt::CTRL) | static_cast<int>(Qt::Key_J)));
+#endif
   pToolsMenu->addSeparator();
   settingsAction = ActionHelper::createAction(pToolsMenu, "&Preferences", this,
                                               &lmcMainWindow::traySettingsAction_triggered,

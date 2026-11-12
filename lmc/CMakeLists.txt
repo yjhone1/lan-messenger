@@ -27,10 +27,11 @@ endif()
 
 set(LMC_VERSION "${_lmc_sub_ver}" CACHE STRING "Application display version" FORCE)
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Network Xml)
-find_package(Qt6 6.2 QUIET COMPONENTS LinguistTools)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets Network Xml)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Network Xml)
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS LinguistTools)
 if(UNIX)
-    find_package(Qt6 6.2 REQUIRED COMPONENTS Multimedia)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia)
 endif()
 find_package(OpenSSL REQUIRED)
 
@@ -153,10 +154,16 @@ add_library(lmc_core STATIC
     src/gui/contacts/userselectdialog.ui
 )
 
-target_compile_definitions(lmc_core PUBLIC
-    QT_DISABLE_DEPRECATED_BEFORE=0x060000
-    "IDA_VERSION=\"${LMC_VERSION}\""
-)
+if(QT_VERSION_MAJOR EQUAL 6)
+    target_compile_definitions(lmc_core PUBLIC
+        QT_DISABLE_DEPRECATED_BEFORE=0x060000
+        "IDA_VERSION=\"${LMC_VERSION}\""
+    )
+else()
+    target_compile_definitions(lmc_core PUBLIC
+        "IDA_VERSION=\"${LMC_VERSION}\""
+    )
+endif()
 
 target_include_directories(lmc_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -167,16 +174,16 @@ target_include_directories(lmc_core PUBLIC
 target_link_libraries(lmc_core
     PUBLIC
         lmcapp
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Widgets
-        Qt6::Network
-        Qt6::Xml
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Network
+        Qt${QT_VERSION_MAJOR}::Xml
         OpenSSL::Crypto
 )
 
 if(UNIX)
-    target_link_libraries(lmc_core PUBLIC Qt6::Multimedia)
+    target_link_libraries(lmc_core PUBLIC Qt${QT_VERSION_MAJOR}::Multimedia)
 endif()
 
 if(WIN32)
@@ -219,7 +226,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/sounds ${LMC_RUNTIME_DIR}/sounds
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/themes ${CMAKE_CURRENT_BINARY_DIR}/themes
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/themes ${LMC_RUNTIME_DIR}/themes
-    COMMAND Qt6::rcc -binary ${CMAKE_CURRENT_SOURCE_DIR}/src/resource.qrc
+    COMMAND Qt${QT_VERSION_MAJOR}::rcc -binary ${CMAKE_CURRENT_SOURCE_DIR}/src/resource.qrc
             -o ${LMC_RUNTIME_DIR}/lmc.rcc
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/resource.qrc
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -232,7 +239,7 @@ set(LMC_TRANSLATIONS_DIR "${CMAKE_SOURCE_DIR}/translations")
 if(NOT EXISTS "${LMC_TRANSLATIONS_DIR}" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../translations")
     set(LMC_TRANSLATIONS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../translations")
 endif()
-if(TARGET Qt6::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
+if(TARGET Qt${QT_VERSION_MAJOR}::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
     file(GLOB LMC_TS_FILES CONFIGURE_DEPENDS
          ${LMC_TRANSLATIONS_DIR}/lmc_*.ts)
     list(SORT LMC_TS_FILES)
@@ -245,7 +252,7 @@ if(TARGET Qt6::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
             OUTPUT ${qm_out}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}/lang
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lang
-            COMMAND Qt6::lrelease ${ts} -qm ${qm_out}
+            COMMAND Qt${QT_VERSION_MAJOR}::lrelease ${ts} -qm ${qm_out}
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${qm_out} ${CMAKE_CURRENT_BINARY_DIR}/lang/${qm_name}.qm
             DEPENDS ${ts}
             COMMENT "lrelease ${qm_name}.ts"

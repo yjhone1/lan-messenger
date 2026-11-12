@@ -1,4 +1,5 @@
-find_package(Qt6 6.2 REQUIRED COMPONENTS Test)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Test)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Test)
 
 # Crypto unit tests: pure lmcCrypto round-trips, no network, no GUI.
 # Fixture dir is baked in at configure time (out-of-source safe).
@@ -10,7 +11,7 @@ target_compile_definitions(tst_crypto PRIVATE
     LMC_CRYPTO_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/crypto"
 )
 
-target_link_libraries(tst_crypto PRIVATE lmc_core Qt6::Test)
+target_link_libraries(tst_crypto PRIVATE lmc_core Qt${QT_VERSION_MAJOR}::Test)
 
 set_target_properties(tst_crypto PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests

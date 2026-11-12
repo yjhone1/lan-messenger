@@ -12,18 +12,23 @@ permissions:
   contents: write
 
 env:
-  QT_VERSION: '6.6.3'
+  QT6_VERSION: '6.6.3'
+  QT5_VERSION: '5.15.2'
   LMC_VERSION: '1.4.0.3'
 
 jobs:
-  build-windows:
+  build-win64:
+    name: Build Windows 64-bit (Win10/11, Qt ${{ env.QT6_VERSION }})
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.sync_ver.outputs.version }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Synchronize Version (VERSION / CMakeLists.txt / Git Tag)
+        id: sync_ver
         shell: pwsh
         run: |
           $ver = "${{ env.LMC_VERSION }}"
@@ -41,85 +46,91 @@ jobs:
           }
           Write-Host "Synchronized LMC_VERSION = $ver"
           "LMC_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Setup MSVC Developer Command Prompt
+      - name: Setup MSVC x64 Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: Install Qt 6
+      - name: Install Qt 6 (win64_msvc2019_64)
         uses: jurplel/install-qt-action@v4
         with:
-          version: ${{ env.QT_VERSION }}
+          version: ${{ env.QT6_VERSION }}
           host: windows
           target: desktop
           arch: win64_msvc2019_64
           cache: true
 
-      - name: Configure CMake
+      - name: Configure CMake (x64)
         shell: pwsh
         run: |
           $extraArgs = @()
           foreach ($dir in @("C:\Program Files\OpenSSL", "C:\Program Files\OpenSSL-Win64")) {
             if (Test-Path "$dir\include\openssl\evp.h") {
               $extraArgs += "-DOPENSSL_ROOT_DIR=$dir"
+              "OPENSSL_ROOT_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               $env:PATH = "$dir\bin;$env:PATH"
-              Write-Host "Found OpenSSL root at: $dir"
+              Write-Host "Found OpenSSL x64 root at: $dir"
               break
             }
           }
-          cmake -B build -G "Ninja" `
+          cmake -B build-x64 -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
             -DLMC_VERSION="$env:LMC_VERSION" `
             -DLMC_BUILD_TESTS=ON `
-            $extraArgs
+            @extraArgs
 
-      - name: Build LAN Messenger & Crypto Unit Tests
+      - name: Build x64 LAN Messenger & Crypto Unit Tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --parallel
+          cmake --build build-x64 --config Release --parallel
 
-      - name: Run OpenSSL 3.0 <-> 1.0 Interoperability Unit Tests
+      - name: Run x64 OpenSSL Interoperability Unit Tests
         shell: pwsh
         run: |
-          # Ensure OpenSSL DLLs are in PATH and copied to tests directory for ctest
-          foreach ($dir in @("C:\Program Files\OpenSSL\bin", "C:\Program Files\OpenSSL-Win64\bin", "$env:OPENSSL_ROOT_DIR\bin")) {
-            if (Test-Path $dir) {
+          $opensslBinDirs = @("C:\Program Files\OpenSSL\bin", "C:\Program Files\OpenSSL-Win64\bin")
+          if ($env:OPENSSL_ROOT_DIR) {
+            $opensslBinDirs += "$env:OPENSSL_ROOT_DIR\bin"
+          }
+          if (Test-Path "build-x64/CMakeCache.txt") {
+            $cacheLine = Select-String -Path "build-x64/CMakeCache.txt" -Pattern "^OPENSSL_CRYPTO_LIBRARY:FILEPATH=(.+)$" | Select-Object -First 1
+            if ($cacheLine) {
+              $libDir = Split-Path -Parent $cacheLine.Matches[0].Groups[1].Value
+              $opensslBinDirs += (Join-Path (Split-Path -Parent $libDir) "bin")
+              $opensslBinDirs += $libDir
+            }
+          }
+          foreach ($dir in ($opensslBinDirs | Select-Object -Unique)) {
+            if ($dir -and (Test-Path $dir)) {
               $env:PATH = "$dir;$env:PATH"
-              if (Test-Path "build/tests") {
+              if (Test-Path "build-x64/tests") {
                 Get-ChildItem -Path $dir -Include "libcrypto*.dll", "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-                  Copy-Item $_.FullName -Destination "build/tests" -Force -ErrorAction SilentlyContinue
+                  Copy-Item $_.FullName -Destination "build-x64/tests" -Force -ErrorAction SilentlyContinue
                 }
               }
             }
           }
-          ctest --test-dir build --output-on-failure -C Release
+          ctest --test-dir build-x64 --output-on-failure -C Release
 
-      - name: Stage Windows Release & Build NSIS Installer
+      - name: Stage x64 Release Payload & Portable ZIP
         shell: pwsh
         run: |
-          $stageDir = "lmc/release"
+          $stageDir = "stage-win64"
           if (Test-Path $stageDir) { Remove-Item -Recurse -Force $stageDir }
           New-Item -ItemType Directory -Force -Path "$stageDir/lang/system", "$stageDir/sounds", "$stageDir/themes" | Out-Null
 
-          # 1. Copy built executable and external resource bundle
-          $exeFile = Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1
-          if (-not $exeFile) {
-            Write-Error "lmc.exe not found in build directory!"
-            exit 1
-          }
+          $exeFile = Get-ChildItem -Path build-x64 -Recurse -Filter "lmc.exe" | Select-Object -First 1
+          if (-not $exeFile) { Write-Error "x64 lmc.exe not found!"; exit 1 }
           Copy-Item $exeFile.FullName -Destination "$stageDir/lmc.exe" -Force
 
-          $rccFile = Get-ChildItem -Path build -Recurse -Filter "lmc.rcc" | Select-Object -First 1
-          if ($rccFile) {
-            Copy-Item $rccFile.FullName -Destination "$stageDir/lmc.rcc" -Force
-          }
+          $rccFile = Get-ChildItem -Path build-x64 -Recurse -Filter "lmc.rcc" | Select-Object -First 1
+          if ($rccFile) { Copy-Item $rccFile.FullName -Destination "$stageDir/lmc.rcc" -Force }
 
-          # 2. Copy language (.qm), sounds, and themes assets
           if (Test-Path "lmc/src/resources/lang") {
             Copy-Item "lmc/src/resources/lang/*.qm" -Destination "$stageDir/lang/" -Force
           }
-          Get-ChildItem -Path build -Recurse -Filter "*.qm" -ErrorAction SilentlyContinue | ForEach-Object {
+          Get-ChildItem -Path build-x64 -Recurse -Filter "*.qm" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName -Destination "$stageDir/lang/" -Force
           }
           if (Test-Path "lmc/src/resources/sounds") {
@@ -129,71 +140,291 @@ jobs:
             Copy-Item "lmc/src/resources/themes/*" -Destination "$stageDir/themes/" -Recurse -Force
           }
 
-          # 3. Deploy Qt 6 runtime DLLs and system translations
           windeployqt --release --no-opengl-sw --no-system-d3d-compiler "$stageDir/lmc.exe"
           Remove-Item "$stageDir/vc_redist*.exe" -Force -ErrorAction SilentlyContinue
           if (Test-Path "$stageDir/translations") {
             Copy-Item "$stageDir/translations/qtbase_*.qm" -Destination "$stageDir/lang/system/" -Force -ErrorAction SilentlyContinue
           }
 
-          # 4. Bundle OpenSSL 3.x and MSVC runtime DLLs
           foreach ($dir in @("C:\Program Files\OpenSSL\bin", "C:\Program Files\OpenSSL-Win64\bin", "$env:OPENSSL_ROOT_DIR\bin")) {
-            if (Test-Path $dir) {
+            if ($dir -and (Test-Path $dir)) {
               Get-ChildItem -Path $dir -Include "libcrypto*.dll", "libssl*.dll" -Recurse | Copy-Item -Destination $stageDir -Force
             }
           }
           foreach ($crt in @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll")) {
             $crtPath = "$env:SystemRoot\System32\$crt"
-            if (Test-Path $crtPath) {
-              Copy-Item $crtPath -Destination $stageDir -Force
-            }
+            if (Test-Path $crtPath) { Copy-Item $crtPath -Destination $stageDir -Force }
           }
 
           Copy-Item "LICENSE", "README.md" -Destination $stageDir -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x64.zip" -Force
 
-          # 5. Build NSIS Windows Setup Installer (e.g. lmc-1.3.0-win64.exe or lmc-1.3.01-win64.exe)
+      - name: Upload x64 Stage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-win64
+          path: |
+            stage-win64/**
+            lan-messenger-windows-x64.zip
+
+  build-win32:
+    name: Build Windows 32-bit (Win7 SP1+ / x86, Qt ${{ env.QT5_VERSION }})
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.sync_ver.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Synchronize Version (VERSION / CMakeLists.txt / Git Tag)
+        id: sync_ver
+        shell: pwsh
+        run: |
+          $ver = "${{ env.LMC_VERSION }}"
+          if (Test-Path "VERSION") {
+            $fileVer = (Get-Content "VERSION" -TotalCount 1).Trim()
+            if ($fileVer) { $ver = $fileVer }
+          } elseif (Test-Path "CMakeLists.txt") {
+            $cmakeContent = Get-Content "CMakeLists.txt" -Raw
+            if ($cmakeContent -match 'project\s*\(\s*lan-messenger\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)') {
+              $ver = $Matches[1]
+            }
+          }
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)') {
+            $ver = $Matches[1]
+          }
+          Write-Host "Synchronized LMC_VERSION = $ver"
+          "LMC_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Setup MSVC x86 Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Install Qt 5.15 (win32_msvc2019 for x86 / Windows 7 Compat)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT5_VERSION }}
+          host: windows
+          target: desktop
+          arch: win32_msvc2019
+          cache: true
+
+      - name: Cache 32-bit OpenSSL (vcpkg x86-windows)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_INSTALLATION_ROOT }}\installed\x86-windows
+          key: vcpkg-openssl-x86-${{ runner.os }}-v1
+
+      - name: Install 32-bit OpenSSL (vcpkg x86-windows)
+        shell: pwsh
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          $opensslRoot = "$vcpkgRoot\installed\x86-windows"
+          if (-not (Test-Path "$opensslRoot\include\openssl\evp.h")) {
+            & "$vcpkgRoot\vcpkg.exe" install openssl:x86-windows
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to install openssl:x86-windows via vcpkg"
+              exit 1
+            }
+          }
+          "OPENSSL_ROOT_DIR=$opensslRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "OpenSSL x86 root: $opensslRoot"
+
+      - name: Configure CMake (x86 / Win7 Compat)
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:OPENSSL_ROOT_DIR\bin;$env:PATH"
+          cmake -B build-x86 -G "Ninja" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DLMC_VERSION="$env:LMC_VERSION" `
+            -DLMC_BUILD_TESTS=ON `
+            -DLMC_WIN7_COMPAT=ON `
+            -DOPENSSL_ROOT_DIR="$env:OPENSSL_ROOT_DIR"
+
+      - name: Build x86 LAN Messenger & Crypto Unit Tests
+        shell: pwsh
+        run: |
+          cmake --build build-x86 --config Release --parallel
+
+      - name: Run x86 OpenSSL Interoperability Unit Tests
+        shell: pwsh
+        run: |
+          $binDir = "$env:OPENSSL_ROOT_DIR\bin"
+          if (Test-Path $binDir) {
+            $env:PATH = "$binDir;$env:PATH"
+            if (Test-Path "build-x86/tests") {
+              Get-ChildItem -Path $binDir -Include "libcrypto*.dll", "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                Copy-Item $_.FullName -Destination "build-x86/tests" -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+          ctest --test-dir build-x86 --output-on-failure -C Release
+
+      - name: Stage x86 (Win7+) Release Payload & Portable ZIP
+        shell: pwsh
+        run: |
+          $stageDir = "stage-win32"
+          if (Test-Path $stageDir) { Remove-Item -Recurse -Force $stageDir }
+          New-Item -ItemType Directory -Force -Path "$stageDir/lang/system", "$stageDir/sounds", "$stageDir/themes" | Out-Null
+
+          $exeFile = Get-ChildItem -Path build-x86 -Recurse -Filter "lmc.exe" | Select-Object -First 1
+          if (-not $exeFile) { Write-Error "x86 lmc.exe not found!"; exit 1 }
+          Copy-Item $exeFile.FullName -Destination "$stageDir/lmc.exe" -Force
+
+          $rccFile = Get-ChildItem -Path build-x86 -Recurse -Filter "lmc.rcc" | Select-Object -First 1
+          if ($rccFile) { Copy-Item $rccFile.FullName -Destination "$stageDir/lmc.rcc" -Force }
+
+          if (Test-Path "lmc/src/resources/lang") {
+            Copy-Item "lmc/src/resources/lang/*.qm" -Destination "$stageDir/lang/" -Force
+          }
+          Get-ChildItem -Path build-x86 -Recurse -Filter "*.qm" -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName -Destination "$stageDir/lang/" -Force
+          }
+          if (Test-Path "lmc/src/resources/sounds") {
+            Copy-Item "lmc/src/resources/sounds/*" -Destination "$stageDir/sounds/" -Recurse -Force
+          }
+          if (Test-Path "lmc/src/resources/themes") {
+            Copy-Item "lmc/src/resources/themes/*" -Destination "$stageDir/themes/" -Recurse -Force
+          }
+
+          # Keep opengl32sw.dll & d3dcompiler_47.dll for Windows 7 GPU compatibility
+          windeployqt --release "$stageDir/lmc.exe"
+          Remove-Item "$stageDir/vc_redist*.exe" -Force -ErrorAction SilentlyContinue
+          if (Test-Path "$stageDir/translations") {
+            Copy-Item "$stageDir/translations/qtbase_*.qm" -Destination "$stageDir/lang/system/" -Force -ErrorAction SilentlyContinue
+          }
+
+          if (Test-Path "$env:OPENSSL_ROOT_DIR\bin") {
+            Get-ChildItem -Path "$env:OPENSSL_ROOT_DIR\bin" -Include "libcrypto*.dll", "libssl*.dll" -Recurse | Copy-Item -Destination $stageDir -Force
+          }
+
+          # Bundle 32-bit MSVC CRT DLLs from VCToolsRedistDir (fallback: SysWOW64)
+          $crtCopied = $false
+          if ($env:VCToolsRedistDir) {
+            $crtDirs = Get-ChildItem -Path "$env:VCToolsRedistDir\x86" -Filter "Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
+            foreach ($cd in $crtDirs) {
+              Get-ChildItem -Path $cd.FullName -Filter "*.dll" | Copy-Item -Destination $stageDir -Force
+              $crtCopied = $true
+            }
+          }
+          if (-not $crtCopied) {
+            foreach ($crt in @("vcruntime140.dll", "msvcp140.dll", "msvcp140_1.dll", "concrt140.dll")) {
+              $crtPath = "$env:SystemRoot\SysWOW64\$crt"
+              if (Test-Path $crtPath) { Copy-Item $crtPath -Destination $stageDir -Force }
+            }
+          }
+
+          # Bundle app-local Universal CRT (Windows 7 KB2999226 fallback) if available in Windows SDK
+          $ucrtDir = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\Redist\*\ucrt\DLLs\x86" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if ($ucrtDir) {
+            Write-Host "Bundling app-local x86 Universal CRT DLLs from $($ucrtDir.FullName)"
+            Get-ChildItem -Path $ucrtDir.FullName -Filter "*.dll" | Copy-Item -Destination $stageDir -Force
+          }
+
+          Copy-Item "LICENSE", "README.md" -Destination $stageDir -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x86.zip" -Force
+
+      - name: Upload x86 Stage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-win32
+          path: |
+            stage-win32/**
+            lan-messenger-windows-x86.zip
+
+  package-universal:
+    name: Package Universal 32/64-bit & Win7 Installers
+    needs: [build-win64, build-win32]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download x64 & x86 Build Stages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: stage-win*
+          merge-multiple: true
+
+      - name: Prepare Release Stages, Prerequisites (VC++ Redist x86/x64) & NSIS Installers
+        shell: pwsh
+        run: |
+          $ver = "${{ needs.build-win64.outputs.version }}"
+          if (-not $ver) { $ver = "${{ env.LMC_VERSION }}" }
+          "LMC_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          New-Item -ItemType Directory -Force -Path "lmc/release-x64", "lmc/release-x86", "lmc/setup/win32/prereqs" | Out-Null
+          Copy-Item "stage-win64/*" -Destination "lmc/release-x64" -Recurse -Force
+          Copy-Item "stage-win32/*" -Destination "lmc/release-x86" -Recurse -Force
+
+          # Download official Microsoft VC++ 2015-2022 Redistributables (includes Win7 KB2999226 UCRT inside installer)
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x86.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x86.exe"
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x64.exe"
+
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
             choco install nsis -y
           }
-          $verParts = ("${{ env.LMC_VERSION }}".Split('.') | ForEach-Object { [int]$_ })
+
+          $verParts = ($ver.Split('.') | ForEach-Object { [int]$_ })
           while ($verParts.Count -lt 4) { $verParts += 0 }
           $nsisFourPartVer = ($verParts[0..3] -join '.')
-          Push-Location "lmc/setup/win32"
-          & $makensis /DExeFolder=release /DProductVersion=${{ env.LMC_VERSION }} /DInstallerVersion=$nsisFourPartVer setup.nsi
-          if ($LASTEXITCODE -ne 0) {
-            Pop-Location
-            Write-Error "NSIS installer build failed!"
-            exit 1
-          }
-          Pop-Location
-          Move-Item "lmc/setup/win32/lmc-${{ env.LMC_VERSION }}-win64.exe" "lmc-${{ env.LMC_VERSION }}-win64.exe" -Force
 
-          # 6. Create Portable ZIP archive
-          Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x64.zip" -Force
+          Push-Location "lmc/setup/win32"
+
+          # 1. Universal Dual-Arch Installer (32-bit/64-bit auto-select + Win7 prereqs)
+          & $makensis /DUniversalBuild=1 /DX86Folder=release-x86 /DX64Folder=release-x64 /DPrereqFolder=prereqs /DProductVersion=$ver /DInstallerVersion=$nsisFourPartVer setup.nsi
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "Universal NSIS build failed!"; exit 1 }
+
+          # 2. Standalone 64-bit Installer (Windows 10/11 x64)
+          & $makensis /DExeFolder=release-x64 /DPrereqFolder=prereqs /DProductVersion=$ver /DInstallerVersion=$nsisFourPartVer setup.nsi
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "Win64 NSIS build failed!"; exit 1 }
+
+          # 3. Standalone 32-bit Installer (Windows 7 SP1+ / x86)
+          & $makensis /DForceX86=1 /DExeFolder=release-x86 /DPrereqFolder=prereqs /DProductVersion=$ver /DInstallerVersion=$nsisFourPartVer setup.nsi
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "Win32 NSIS build failed!"; exit 1 }
+
+          Pop-Location
+
+          Move-Item "lmc/setup/win32/lmc-$ver-win-setup.exe" "lmc-$ver-win-setup.exe" -Force
+          Move-Item "lmc/setup/win32/lmc-$ver-win64.exe" "lmc-$ver-win64.exe" -Force
+          Move-Item "lmc/setup/win32/lmc-$ver-win32.exe" "lmc-$ver-win32.exe" -Force
 
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: lan-messenger-windows-x64-v${{ env.LMC_VERSION }}
+          name: lan-messenger-windows-v${{ env.LMC_VERSION }}
           path: |
+            lmc-${{ env.LMC_VERSION }}-win-setup.exe
             lmc-${{ env.LMC_VERSION }}-win64.exe
+            lmc-${{ env.LMC_VERSION }}-win32.exe
             lan-messenger-windows-x64.zip
+            lan-messenger-windows-x86.zip
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ env.LMC_VERSION }}"
-          name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release"
+          name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release (32/64-bit Universal)"
           body: |
-            Automated Windows x64 Release of LAN Messenger v${{ env.LMC_VERSION }} (Qt ${{ env.QT_VERSION }} / MSVC 2022).
-            - **Windows Installer (Setup Wizard)**: `lmc-${{ env.LMC_VERSION }}-win64.exe`
-            - **Windows Portable ZIP**: `lan-messenger-windows-x64.zip`
-            - Includes all 20 languages (`ko_KR` Korean included) in both embedded resources and `lang/` folder
-            - OpenSSL 3.0 <-> 1.0 Legacy Compatibility Architecture & Remote Desktop Control
+            Automated Windows Release of LAN Messenger v${{ env.LMC_VERSION }} (32-bit & 64-bit Universal Support).
+            - **Universal Installer (Recommended / Win7~Win11, 32/64-bit Auto)**: `lmc-${{ env.LMC_VERSION }}-win-setup.exe`
+              - Automatically selects **64-bit (Qt ${{ env.QT6_VERSION }})** on 64-bit Windows 10/11 and **32-bit Compat (Qt ${{ env.QT5_VERSION }})** on Windows 7 SP1 / 8 / 8.1 or 32-bit systems.
+              - Automatically checks and installs missing **Visual C++ 2015-2022 Redistributable** & **Windows 7 Universal CRT (KB2999226)** prerequisites (with app-local fallback DLLs bundled).
+            - **Standalone Windows x64 Installer (Win10/11)**: `lmc-${{ env.LMC_VERSION }}-win64.exe`
+            - **Standalone Windows x86 Installer (Win7 SP1+ Compat)**: `lmc-${{ env.LMC_VERSION }}-win32.exe`
+            - **Portable ZIPs**: `lan-messenger-windows-x64.zip`, `lan-messenger-windows-x86.zip`
           files: |
+            lmc-${{ env.LMC_VERSION }}-win-setup.exe
             lmc-${{ env.LMC_VERSION }}-win64.exe
+            lmc-${{ env.LMC_VERSION }}-win32.exe
             lan-messenger-windows-x64.zip
+            lan-messenger-windows-x86.zip
           draft: false
           prerelease: false

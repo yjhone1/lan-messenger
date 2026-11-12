@@ -1043,7 +1043,7 @@ export const UserInfoWindowModal: React.FC<{
                       data-testid="btn-utility-block-all"
                       onClick={() => onSetAllAiAgentProcesses?.(user, false)}
                       className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold cursor-pointer"
-                      title="10종 AI Agent의 로컬 프로세스 구동을 모두 차단(OFF)합니다."
+                      title="11종 AI Agent의 로컬 프로세스 구동을 모두 차단(OFF)합니다."
                     >
                       ✕ 전체 프로세스 차단
                     </button>
@@ -1052,7 +1052,7 @@ export const UserInfoWindowModal: React.FC<{
                       data-testid="btn-utility-allow-all"
                       onClick={() => onSetAllAiAgentProcesses?.(user, true)}
                       className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer"
-                      title="10종 AI Agent의 로컬 프로세스 구동을 모두 허용(ON)합니다."
+                      title="11종 AI Agent의 로컬 프로세스 구동을 모두 허용(ON)합니다."
                     >
                       ✓ 전체 프로세스 허용
                     </button>

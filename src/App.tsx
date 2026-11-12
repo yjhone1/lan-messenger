@@ -508,6 +508,7 @@ export function App() {
       openaiOperator: nextAllowed,
       agentgpt: nextAllowed,
       chatdev: nextAllowed,
+      opencode: nextAllowed,
     };
 
     const updatedUserProps = {
@@ -528,7 +529,7 @@ export function App() {
 
     triggerTrayBalloon(
       'AI Agent 프로세스 일괄 설정',
-      `'${targetUser.name}' 사용자의 10종 AI Agent 로컬 프로세스가 모두 ${
+      `'${targetUser.name}' 사용자의 11종 AI Agent 로컬 프로세스가 모두 ${
         nextAllowed ? '일괄 허용(ON)' : '일괄 차단(OFF)'
       }되었습니다.`
     );

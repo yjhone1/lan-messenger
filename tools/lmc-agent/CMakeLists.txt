@@ -7,7 +7,8 @@
 # test binary shares its startup line-for-line. Behind LMC_WITH_TEST_AGENT
 # so weak VMs can skip the extra link.
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Network)
 
 add_library(lmc_agent_core STATIC
     agent_core.cpp
@@ -18,10 +19,10 @@ add_library(lmc_agent_core STATIC
 
 target_link_libraries(lmc_agent_core
     PUBLIC
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Widgets
-        Qt6::Network
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Network
 )
 
 target_include_directories(lmc_agent_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

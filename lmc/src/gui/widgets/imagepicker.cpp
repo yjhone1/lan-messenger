@@ -106,7 +106,11 @@ void lmcImagePicker::currentChanged(const QModelIndex& current, const QModelInde
 void lmcImagePicker::mouseMoveEvent(QMouseEvent* e) {
   QTableWidget::mouseMoveEvent(e);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
   QTableWidgetItem* currentItem = itemAt(e->position().toPoint());
+#else
+  QTableWidgetItem* currentItem = itemAt(e->pos());
+#endif
   if(currentItem != hoverItem) {
     hoverItem = currentItem;
     if(hoverItem)
