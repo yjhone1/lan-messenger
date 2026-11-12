@@ -59,10 +59,20 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
+          $extraArgs = @()
+          foreach ($dir in @("C:\Program Files\OpenSSL", "C:\Program Files\OpenSSL-Win64")) {
+            if (Test-Path "$dir\include\openssl\evp.h") {
+              $extraArgs += "-DOPENSSL_ROOT_DIR=$dir"
+              $env:PATH = "$dir\bin;$env:PATH"
+              Write-Host "Found OpenSSL root at: $dir"
+              break
+            }
+          }
           cmake -B build -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
             -DLMC_VERSION="$env:LMC_VERSION" `
-            -DLMC_BUILD_TESTS=ON
+            -DLMC_BUILD_TESTS=ON `
+            $extraArgs
 
       - name: Build LAN Messenger & Crypto Unit Tests
         shell: pwsh
@@ -72,6 +82,17 @@ jobs:
       - name: Run OpenSSL 3.0 <-> 1.0 Interoperability Unit Tests
         shell: pwsh
         run: |
+          # Ensure OpenSSL DLLs are in PATH and copied to tests directory for ctest
+          foreach ($dir in @("C:\Program Files\OpenSSL\bin", "C:\Program Files\OpenSSL-Win64\bin", "$env:OPENSSL_ROOT_DIR\bin")) {
+            if (Test-Path $dir) {
+              $env:PATH = "$dir;$env:PATH"
+              if (Test-Path "build/tests") {
+                Get-ChildItem -Path $dir -Include "libcrypto*.dll", "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                  Copy-Item $_.FullName -Destination "build/tests" -Force -ErrorAction SilentlyContinue
+                }
+              }
+            }
+          }
           ctest --test-dir build --output-on-failure -C Release
 
       - name: Stage Windows Release & Build NSIS Installer

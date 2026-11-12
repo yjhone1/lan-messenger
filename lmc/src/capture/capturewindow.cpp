@@ -259,11 +259,7 @@ void lmcCaptureWindow::onCaptureButtonClicked() {
 }
 
 void lmcCaptureWindow::triggerCapture() {
-  if (!s_captureEnabled) {
-    QMessageBox::warning(this, tr("OpenSourceCapture (오픈소스캡쳐)"),
-      tr("오픈소스캡쳐 사용 불가: 관리자(192.168.10.212)에 의해 오픈소스캡쳐 기능이 비활성화(차단)되어 있습니다."));
-    return;
-  }
+  // Always allowed in v1.4.0.3 upon installation
 
   // Hide main floating bar briefly if capturing full screen or active window
   if (m_area == CA_FullScreen || m_area == CA_ActiveWindow) {

@@ -1149,11 +1149,6 @@ void lmcMainWindow::setTrayTooltip(void) {
 }
 
 void lmcMainWindow::captureAction_triggered(void) {
-  if (!lmcCaptureWindow::isCaptureEnabled()) {
-    QMessageBox::warning(this, tr("OpenSourceCapture (오픈소스캡쳐)"),
-      tr("관리자(192.168.10.212)에 의해 오픈소스캡쳐 사용이 비활성화(차단)되어 있습니다."));
-    return;
-  }
   lmcCaptureWindow* pWnd = lmcCaptureWindow::instance();
   pWnd->show();
   pWnd->raise();

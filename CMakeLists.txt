@@ -34,6 +34,10 @@ if(WIN32)
     add_compile_definitions(UNICODE _UNICODE)
 endif()
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()

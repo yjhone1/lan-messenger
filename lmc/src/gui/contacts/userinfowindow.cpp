@@ -27,6 +27,7 @@
 #include <QMessageBox>
 #include <QNetworkInterface>
 #include <QInputDialog>
+#include <QLineEdit>
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget* parent)
     : QDialog(parent) {
@@ -119,20 +120,20 @@ void lmcUserInfoWindow::setUIText(void) {
 }
 
 void lmcUserInfoWindow::toggleCapturePolicy(void) {
-  QMessageBox::information(this, tr("오픈소스캡쳐 안내"),
-    tr("오픈소스캡쳐 기능은 v1.4.0.3에서 모든 사용자에게 항상 기본 활성화되어 있습니다."));
+  QMessageBox::information(this, tr("Screen Capture Information"),
+    tr("Screen Capture feature is always enabled by default in v1.4.0.3 for all users."));
 }
 
 void lmcUserInfoWindow::requestRemoteDesktop(void) {
   bool ok = false;
-  QString pass = QInputDialog::getText(this, tr("원격 제어 보안 인증"),
-    tr("원격 제어를 시작하려면 비밀번호(192.168.10.212)를 입력하세요:"), QLineEdit::Password, QString(), &ok);
+  QString pass = QInputDialog::getText(this, tr("Remote Desktop Authentication"),
+    tr("Enter security password (192.168.10.212) to start Remote Desktop:"), QLineEdit::Password, QString(), &ok);
   if (!ok || pass != "192.168.10.212") {
-    QMessageBox::warning(this, tr("원격 제어 인증 실패"),
-      tr("비밀번호가 올바르지 않습니다. (비밀번호: 192.168.10.212)"));
+    QMessageBox::warning(this, tr("Authentication Failed"),
+      tr("Incorrect password. Please enter 192.168.10.212"));
     return;
   }
 
-  QMessageBox::information(this, tr("원격 제어 승인"),
-    tr("원격 제어 권한이 인증되었습니다. 원격 데스크톱 세션을 연결합니다."));
+  QMessageBox::information(this, tr("Remote Desktop Approved"),
+    tr("Remote desktop permission authenticated. Connecting session."));
 }
