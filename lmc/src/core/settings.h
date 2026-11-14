@@ -182,6 +182,7 @@
 #define IDS_USER "User"
 #define IDS_BROADCASTHDR "BroadcastList"
 #define IDS_BROADCAST "Broadcast"
+#define IDS_AIAGENT_GROUP "Security/AiAgents"
 
 class lmcSettingsBase : public QSettings {
 public:

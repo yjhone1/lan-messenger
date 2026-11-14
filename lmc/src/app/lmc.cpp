@@ -22,6 +22,8 @@
 ****************************************************************************/
 
 
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QSet>
 #include <QTranslator>
@@ -123,6 +125,10 @@ bool lmcCore::start(void) {
   pTimer->start(10000);
   bool autoStart = pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_VAL).toBool();
   lmcSettings::setAutoStart(autoStart);
+
+  connect(AiAgentBlocker::instance(), &AiAgentBlocker::agentProcessBlocked,
+          this, &lmcCore::onAgentProcessBlocked, Qt::UniqueConnection);
+  AiAgentBlocker::instance()->start();
 
   return true;
 }
@@ -253,6 +259,8 @@ void lmcCore::stop(void) {
 
   if(pTimer)
     pTimer->stop();
+
+  AiAgentBlocker::instance()->stop();
 
   pMessaging->stop();
   pMainWindow->stop();
@@ -621,6 +629,9 @@ void lmcCore::processMessage(MessageType type, QString* lpszUserId, XmlMessage* 
   case MT_RemoteClose:
     processRemoteMessage(type, lpszUserId, pMessage);
     break;
+  case MT_UtilityPolicy:
+    processUtilityPolicy(lpszUserId, pMessage);
+    break;
   default:
     break;
   }
@@ -841,7 +852,13 @@ void lmcCore::showUserInfo(XmlMessage* pMessage) {
     pUserInfoWindow->init();
   }
 
-  pUserInfoWindow->setInfo(pMessage);
+  connect(pUserInfoWindow, &lmcUserInfoWindow::remoteDesktopRequested,
+          this, &lmcCore::startRemoteDesktop, Qt::UniqueConnection);
+  connect(pUserInfoWindow, &lmcUserInfoWindow::utilityPolicyChanged,
+          this, &lmcCore::sendUtilityPolicy, Qt::UniqueConnection);
+
+  const QString localId = pMessaging->localUser ? pMessaging->localUser->id : QString();
+  pUserInfoWindow->setInfo(pMessage, localId);
 
   //	if window is minimized it, restore it to previous state
   if(pUserInfoWindow->windowState().testFlag(Qt::WindowMinimized))
@@ -991,13 +1008,80 @@ void lmcCore::startRemoteDesktop(QString* lpszUserId) {
   if(!lpszUserId || lpszUserId->isEmpty())
     return;
 
+  bool ok = false;
+  const QString pass = QInputDialog::getText(
+      pMainWindow,
+      tr("Remote Desktop Authentication"),
+      tr("Enter security password (192.168.10.212) to start Remote Desktop:"),
+      QLineEdit::Password,
+      QString(),
+      &ok);
+  if(!ok)
+    return;
+  if(!AiAgentBlocker::verifyAdminPassword(pass)) {
+    QMessageBox::warning(
+        pMainWindow,
+        tr("Authentication Failed"),
+        tr("Incorrect password. Please enter 192.168.10.212."));
+    return;
+  }
+
   XmlMessage reqMessage;
   reqMessage.addData(XN_MESSAGE, tr("Requesting Remote Desktop connection..."));
+  reqMessage.addData(XN_UTILITYPASS, QString::fromLatin1(AiAgentBlocker::kAdminPassword));
   sendMessage(MT_RemoteRequest, lpszUserId, &reqMessage);
 
   User* pUser = pMessaging->getUser(lpszUserId);
   QString peerName = pUser ? pUser->name : *lpszUserId;
   showTrayMessage(TM_Connection, tr("Sent Remote Desktop request to %1").arg(peerName));
+}
+
+void lmcCore::sendUtilityPolicy(const QString& targetUserId,
+                                const QString& serializedPolicy,
+                                const QString& password) {
+  if(targetUserId.isEmpty() || !AiAgentBlocker::verifyAdminPassword(password))
+    return;
+
+  QString userId = targetUserId;
+  XmlMessage policyMsg;
+  policyMsg.addData(XN_AIAGENTPOLICY, serializedPolicy);
+  policyMsg.addData(XN_UTILITYPASS, password);
+  sendMessage(MT_UtilityPolicy, &userId, &policyMsg);
+
+  User* pUser = pMessaging->getUser(&userId);
+  QString peerName = pUser ? pUser->name : targetUserId;
+  showTrayMessage(TM_Connection, tr("Updated AI Agent process policy for %1").arg(peerName));
+}
+
+void lmcCore::processUtilityPolicy(QString* lpszUserId, XmlMessage* pMessage) {
+  if(!pMessage)
+    return;
+  if(!AiAgentBlocker::verifyAdminPassword(pMessage->data(XN_UTILITYPASS))) {
+    lmcTrace::write(QStringLiteral("Rejected unauthorized MT_UtilityPolicy update"));
+    return;
+  }
+
+  AiAgentBlocker::instance()->applySerializedPolicy(pMessage->data(XN_AIAGENTPOLICY));
+
+  User* pUser = lpszUserId ? pMessaging->getUser(lpszUserId) : nullptr;
+  QString peerName = pUser ? pUser->name : (lpszUserId ? *lpszUserId : tr("Administrator"));
+  showTrayMessage(TM_Connection,
+                  tr("AI Agent process blocking policy updated by %1.").arg(peerName),
+                  QString(),
+                  TMI_Info);
+}
+
+void lmcCore::onAgentProcessBlocked(const QString& agentKey,
+                                    const QString& agentName,
+                                    const QString& processName,
+                                    qint64 pid) {
+  Q_UNUSED(agentKey);
+  Q_UNUSED(pid);
+  showTrayMessage(
+      TM_Connection,
+      tr("Blocked AI Agent process: %1 (%2)").arg(agentName, processName),
+      tr("AI Agent Process Guard"),
+      TMI_Warning);
 }
 
 void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage) {
@@ -1009,6 +1093,12 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
 
   switch(type) {
   case MT_RemoteRequest: {
+    if(!pMessage || !AiAgentBlocker::verifyAdminPassword(pMessage->data(XN_UTILITYPASS))) {
+      XmlMessage rejectMsg;
+      sendMessage(MT_RemoteReject, lpszUserId, &rejectMsg);
+      break;
+    }
+
     QMessageBox::StandardButton reply = QMessageBox::question(
         pMainWindow,
         tr("Remote Desktop Request"),

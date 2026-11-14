@@ -388,6 +388,7 @@ void lmcMessaging::processMessage(MessageHeader* pHeader, XmlMessage* pMessage) 
   case MT_RemoteAccept:
   case MT_RemoteReject:
   case MT_RemoteClose:
+  case MT_UtilityPolicy:
     emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
     break;
   default:

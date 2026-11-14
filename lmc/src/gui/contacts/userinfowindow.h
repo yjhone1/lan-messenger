@@ -25,12 +25,15 @@
 #ifndef USERINFOWINDOW_H
 #define USERINFOWINDOW_H
 
+#include <QCheckBox>
 #include <QDialog>
+#include <QMap>
 #include "ui_userinfowindow.h"
 #include "core/shared.h"
 #include "core/settings.h"
 #include "core/stdlocation.h"
 #include "messaging/xmlmessage.h"
+#include "security/aiagentblocker.h"
 
 class lmcUserInfoWindow : public QDialog {
   Q_OBJECT
@@ -40,23 +43,46 @@ public:
   ~lmcUserInfoWindow();
 
   void init(void);
-  void setInfo(XmlMessage* pMessage);
+  void setInfo(XmlMessage* pMessage, const QString& localUserId = QString());
   void settingsChanged(void);
+
+signals:
+  void remoteDesktopRequested(QString* lpszUserId);
+  void utilityPolicyChanged(const QString& targetUserId,
+                            const QString& serializedPolicy,
+                            const QString& password);
 
 public slots:
   void toggleCapturePolicy(void);
   void requestRemoteDesktop(void);
+
+private slots:
+  void onScreenCaptureClicked(void);
+  void onUnlockUtilityClicked(void);
+  void onAgentCheckboxToggled(bool checked);
+  void onAllowAllAgentsClicked(void);
+  void onBlockAllAgentsClicked(void);
 
 protected:
   void changeEvent(QEvent* pEvent);
 
 private:
   void setUIText(void);
-  void fillFields(void);
+  void buildUtilityAgentRows(void);
+  void refreshUtilityControls(void);
+  void updateLockUiState(void);
+  void emitUtilityPolicyUpdate(void);
 
   Ui::UserInfoWindow ui;
   lmcSettings* pSettings;
   XmlMessage userInfo;
+  QWidget* m_tabUtility;
+  bool m_utilityTabAttached;
+  bool m_utilityUnlocked;
+  bool m_isLocalUser;
+  QString m_targetUserId;
+  QMap<QString, bool> m_peerPolicy;
+  QMap<QString, QCheckBox*> m_agentChecks;
 };
 
 #endif // USERINFOWINDOW_H

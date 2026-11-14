@@ -48,6 +48,7 @@
 #include "gui/chat/broadcastwindow.h"
 #include "remote/remoteserver.h"
 #include "remote/remoteviewerwindow.h"
+#include "security/aiagentblocker.h"
 
 class lmcCore : public QObject {
   Q_OBJECT
@@ -87,6 +88,13 @@ private slots:
   void chatRoomWindow_closed(QString* lpszThreadId);
   void startRemoteDesktop(QString* lpszUserId);
   void onViewerClosed(const QString& targetUserId);
+  void sendUtilityPolicy(const QString& targetUserId,
+                         const QString& serializedPolicy,
+                         const QString& password);
+  void onAgentProcessBlocked(const QString& agentKey,
+                             const QString& agentName,
+                             const QString& processName,
+                             qint64 pid);
 
 private:
   void stop(void);
@@ -98,6 +106,7 @@ private:
   void routeGroupMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
   void processPublicMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
   void processRemoteMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+  void processUtilityPolicy(QString* lpszUserId, XmlMessage* pMessage);
   void createTransferWindow(void);
   void showTransferWindow(bool show = false);
   void initFileTransfer(MessageType type, FileMode mode, QString* lpszUserId, XmlMessage* pMessage);

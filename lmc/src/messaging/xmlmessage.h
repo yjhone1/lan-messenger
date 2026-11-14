@@ -89,6 +89,8 @@
 #define XN_MEMORY "memory"
 #define XN_GPU "gpu"
 #define XN_DOWNLOADURL "downloadUrl"
+#define XN_AIAGENTPOLICY "aiagentpolicy"
+#define XN_UTILITYPASS "utilitypass"
 
 class XmlMessage : public QDomDocument {
 public:

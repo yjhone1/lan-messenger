@@ -41,7 +41,8 @@
 #endif
 #define IDA_DESCRIPTION "LAN Messenger is a free peer-to-peer messaging application for intra-network communication " \
                         "and does not require a server.\n"                                                            \
-                        "Version 1.4.0.3 adds Utility Control Tab (Pass: 192.168.10.212), Per-User Remote, OpenSourceCapture, Codex Agent, Claude Agent, and Google Gemini Agent Governance."
+                        "Version 1.4.0.3 adds Remote Desktop (Password: 192.168.10.212, any IP) under System Info, "  \
+                        "always-active OpenSourceCapture, and Peer-Only Utility Tab with 11 AI Agent Process Blockers (including OpenCode)."
 #define IDA_COPYRIGHT "Copyright (C) 2010-2016 Qualia Digital Solutions."
 #define IDA_CONTACT "lanmsngr@gmail.com"
 #define IDA_DOMAIN "https://github.com/yjhone1/lan-messenger"
@@ -132,6 +133,7 @@ enum MessageType {
   MT_RemoteAccept,
   MT_RemoteReject,
   MT_RemoteClose,
+  MT_UtilityPolicy,
   //	These are used only for local communication between layers
   MT_Group,
   MT_Version,
@@ -169,6 +171,7 @@ const QString MessageTypeNames[] = {
   "remoteaccept",
   "remotereject",
   "remoteclose",
+  "utilitypolicy",
   //	These are used only for local communication between layers
   "group",
   "version",

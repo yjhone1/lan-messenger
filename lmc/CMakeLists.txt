@@ -87,10 +87,12 @@ add_library(lmc_core STATIC
     src/remote/remoteserver.cpp
     src/remote/remoteclient.cpp
     src/remote/remoteviewerwindow.cpp
+    src/security/aiagentblocker.cpp
     src/remote/remotedefinitions.h
     src/remote/remoteserver.h
     src/remote/remoteclient.h
     src/remote/remoteviewerwindow.h
+    src/security/aiagentblocker.h
     src/gui/widgets/actionhelper.h
     src/gui/main/aboutdialog.h
     src/gui/chat/broadcastwindow.h

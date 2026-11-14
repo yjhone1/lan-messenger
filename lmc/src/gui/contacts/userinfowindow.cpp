@@ -24,20 +24,28 @@
 
 #include "userinfowindow.h"
 #include "capture/capturewindow.h"
+#include <QFrame>
+#include <QLabel>
 #include <QMessageBox>
-#include <QNetworkInterface>
-#include <QInputDialog>
-#include <QLineEdit>
+#include <QSignalBlocker>
+#include <QVBoxLayout>
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget* parent)
-    : QDialog(parent) {
+    : QDialog(parent),
+      pSettings(nullptr),
+      m_tabUtility(nullptr),
+      m_utilityTabAttached(true),
+      m_utilityUnlocked(false),
+      m_isLocalUser(false),
+      m_peerPolicy(AiAgentBlocker::defaultPolicy()) {
   ui.setupUi(this);
-  //	set fixed size
-  layout()->setSizeConstraint(QLayout::SetFixedSize);
+  layout()->setSizeConstraint(QLayout::SetMinimumSize);
   //	remove the help button from window button group
   setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
   //	Destroy the window when it closes
   setAttribute(Qt::WA_DeleteOnClose, true);
+
+  m_tabUtility = ui.tabUtility;
 }
 
 lmcUserInfoWindow::~lmcUserInfoWindow() {
@@ -54,11 +62,48 @@ void lmcUserInfoWindow::init(void) {
   ui.lblUserName->setFont(font);
 
   pSettings = new lmcSettings();
+
+  buildUtilityAgentRows();
+  updateLockUiState();
+
+  connect(ui.btnRemoteDesktop, &QPushButton::clicked, this, &lmcUserInfoWindow::requestRemoteDesktop);
+  connect(ui.btnScreenCapture, &QPushButton::clicked, this, &lmcUserInfoWindow::onScreenCaptureClicked);
+  connect(ui.btnUnlockUtility, &QPushButton::clicked, this, &lmcUserInfoWindow::onUnlockUtilityClicked);
+  connect(ui.txtUtilityPassword, &QLineEdit::returnPressed, this, &lmcUserInfoWindow::onUnlockUtilityClicked);
+  connect(ui.btnAllowAllAgents, &QPushButton::clicked, this, &lmcUserInfoWindow::onAllowAllAgentsClicked);
+  connect(ui.btnBlockAllAgents, &QPushButton::clicked, this, &lmcUserInfoWindow::onBlockAllAgentsClicked);
+
   setUIText();
 }
 
-void lmcUserInfoWindow::setInfo(XmlMessage* pMessage) {
+void lmcUserInfoWindow::setInfo(XmlMessage* pMessage, const QString& localUserId) {
   userInfo = *pMessage;
+  m_targetUserId = userInfo.data(XN_USERID);
+  m_isLocalUser = (!localUserId.isEmpty() && !m_targetUserId.isEmpty() && m_targetUserId == localUserId);
+
+  // Own user's Utility tab must NOT be visible to self; only visible when managing a peer.
+  if(m_tabUtility) {
+    if(m_isLocalUser && m_utilityTabAttached) {
+      const int idx = ui.tabWidget->indexOf(m_tabUtility);
+      if(idx >= 0) {
+        ui.tabWidget->removeTab(idx);
+      }
+      m_utilityTabAttached = false;
+    } else if(!m_isLocalUser && !m_utilityTabAttached) {
+      ui.tabWidget->addTab(m_tabUtility, tr("Utility"));
+      m_utilityTabAttached = true;
+    }
+  }
+
+  ui.btnRemoteDesktop->setVisible(!m_isLocalUser);
+
+  // Reset Utility lock whenever opening peer info and load peer's current 11-agent policy.
+  m_utilityUnlocked = false;
+  ui.txtUtilityPassword->clear();
+  m_peerPolicy = AiAgentBlocker::deserializePolicy(userInfo.data(XN_AIAGENTPOLICY));
+  refreshUtilityControls();
+  updateLockUiState();
+
   setUIText();
   ui.tabWidget->setCurrentIndex(0);
 }
@@ -81,6 +126,13 @@ void lmcUserInfoWindow::changeEvent(QEvent* pEvent) {
 void lmcUserInfoWindow::setUIText(void) {
   ui.retranslateUi(this);
   setWindowTitle(tr("User Information"));
+
+  if(m_utilityTabAttached && m_tabUtility) {
+    const int idx = ui.tabWidget->indexOf(m_tabUtility);
+    if(idx >= 0) {
+      ui.tabWidget->setTabText(idx, tr("Utility"));
+    }
+  }
 
   if(userInfo.header(XN_TYPE).isNull())
     return;
@@ -119,21 +171,118 @@ void lmcUserInfoWindow::setUIText(void) {
   ui.lblVersion->setText(ver.isEmpty() ? "N/A" : ver);
 }
 
+void lmcUserInfoWindow::buildUtilityAgentRows(void) {
+  m_agentChecks.clear();
+  QVBoxLayout* layout = ui.layoutAgents;
+  layout->setSpacing(6);
+
+  for(const AiAgentSpec& spec : AiAgentBlocker::specs()) {
+    QFrame* rowFrame = new QFrame(ui.wgtAgentsContainer);
+    rowFrame->setFrameShape(QFrame::StyledPanel);
+    QVBoxLayout* rowLayout = new QVBoxLayout(rowFrame);
+    rowLayout->setContentsMargins(8, 6, 8, 6);
+    rowLayout->setSpacing(2);
+
+    QCheckBox* chk = new QCheckBox(
+        QStringLiteral("%1 (%2) [%3]").arg(spec.name, spec.processBinary, spec.riskLevel),
+        rowFrame);
+    chk->setProperty("agentKey", spec.key);
+    connect(chk, &QCheckBox::toggled, this, &lmcUserInfoWindow::onAgentCheckboxToggled);
+
+    QLabel* lblDesc = new QLabel(spec.description, rowFrame);
+    lblDesc->setWordWrap(true);
+    QFont smallFont = lblDesc->font();
+    if(smallFont.pointSize() > 1) {
+      smallFont.setPointSize(qMax(7, smallFont.pointSize() - 1));
+    }
+    lblDesc->setFont(smallFont);
+
+    rowLayout->addWidget(chk);
+    rowLayout->addWidget(lblDesc);
+    layout->addWidget(rowFrame);
+    m_agentChecks.insert(spec.key, chk);
+  }
+  layout->addStretch(1);
+}
+
+void lmcUserInfoWindow::refreshUtilityControls(void) {
+  for(auto it = m_agentChecks.constBegin(); it != m_agentChecks.constEnd(); ++it) {
+    QCheckBox* chk = it.value();
+    if(!chk)
+      continue;
+    const bool allowed = m_peerPolicy.value(it.key(), false);
+    QSignalBlocker blocker(chk);
+    chk->setChecked(allowed);
+  }
+}
+
+void lmcUserInfoWindow::updateLockUiState(void) {
+  ui.wgtUtilityLock->setVisible(!m_utilityUnlocked);
+  ui.wgtUtilityControls->setVisible(m_utilityUnlocked);
+}
+
+void lmcUserInfoWindow::emitUtilityPolicyUpdate(void) {
+  if(m_isLocalUser || m_targetUserId.isEmpty() || !m_utilityUnlocked)
+    return;
+  emit utilityPolicyChanged(
+      m_targetUserId,
+      AiAgentBlocker::serializePolicy(m_peerPolicy),
+      QString::fromLatin1(AiAgentBlocker::kAdminPassword));
+}
+
 void lmcUserInfoWindow::toggleCapturePolicy(void) {
   QMessageBox::information(this, tr("Screen Capture Information"),
     tr("Screen Capture feature is always enabled by default in v1.4.0.3 for all users."));
 }
 
+void lmcUserInfoWindow::onScreenCaptureClicked(void) {
+  lmcCaptureWindow* pWnd = lmcCaptureWindow::instance();
+  pWnd->show();
+  pWnd->raise();
+  pWnd->activateWindow();
+}
+
 void lmcUserInfoWindow::requestRemoteDesktop(void) {
-  bool ok = false;
-  QString pass = QInputDialog::getText(this, tr("Remote Desktop Authentication"),
-    tr("Enter security password (192.168.10.212) to start Remote Desktop:"), QLineEdit::Password, QString(), &ok);
-  if (!ok || pass != "192.168.10.212") {
+  if(m_isLocalUser || m_targetUserId.isEmpty())
+    return;
+  emit remoteDesktopRequested(&m_targetUserId);
+}
+
+void lmcUserInfoWindow::onUnlockUtilityClicked(void) {
+  const QString entered = ui.txtUtilityPassword->text();
+  if(!AiAgentBlocker::verifyAdminPassword(entered)) {
     QMessageBox::warning(this, tr("Authentication Failed"),
-      tr("Incorrect password. Please enter 192.168.10.212"));
+      tr("Incorrect administrator password. Enter 192.168.10.212."));
     return;
   }
+  m_utilityUnlocked = true;
+  updateLockUiState();
+  refreshUtilityControls();
+}
 
-  QMessageBox::information(this, tr("Remote Desktop Approved"),
-    tr("Remote desktop permission authenticated. Connecting session."));
+void lmcUserInfoWindow::onAgentCheckboxToggled(bool checked) {
+  QCheckBox* chk = qobject_cast<QCheckBox*>(sender());
+  if(!chk)
+    return;
+  const QString key = chk->property("agentKey").toString();
+  if(key.isEmpty())
+    return;
+  m_peerPolicy[key] = checked;
+  emitUtilityPolicyUpdate();
+}
+
+void lmcUserInfoWindow::onAllowAllAgentsClicked(void) {
+  for(auto it = m_peerPolicy.begin(); it != m_peerPolicy.end(); ++it) {
+    it.value() = true;
+  }
+  refreshUtilityControls();
+  emitUtilityPolicyUpdate();
+}
+
+void lmcUserInfoWindow::onBlockAllAgentsClicked(void) {
+  for(auto it = m_peerPolicy.begin(); it != m_peerPolicy.end(); ++it) {
+    it.value() = false;
+  }
+  refreshUtilityControls();
+  emitUtilityPolicyUpdate();
 }
