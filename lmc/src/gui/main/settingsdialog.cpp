@@ -58,7 +58,7 @@ lmcSettingsDialog::lmcSettingsDialog(QWidget* parent, Qt::WindowFlags flags)
   connect(ui.btnFont, &QAbstractButton::clicked, this, &lmcSettingsDialog::btnFont_clicked);
   connect(ui.btnColor, &QAbstractButton::clicked, this, &lmcSettingsDialog::btnColor_clicked);
   connect(ui.btnReset, &QAbstractButton::clicked, this, &lmcSettingsDialog::btnReset_clicked);
-  connect(ui.cboTheme, &QComboBox::currentIndexChanged, this, &lmcSettingsDialog::cboTheme_currentIndexChanged);
+  connect(ui.cboTheme, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &lmcSettingsDialog::cboTheme_currentIndexChanged);
   connect(ui.lvBroadcasts, &QListWidget::currentRowChanged, this, &lmcSettingsDialog::lvBroadcasts_currentRowChanged);
   connect(ui.txtBroadcast, &QLineEdit::textEdited, this, &lmcSettingsDialog::txtBroadcast_textEdited);
   connect(ui.txtBroadcast, &QLineEdit::returnPressed, this, &lmcSettingsDialog::btnAddBroadcast_clicked);
