@@ -354,6 +354,7 @@ QJsonArray listWindows() {
 bool postClick(const QJsonObject& criteria, QString* error) {
   if(QWidget* widget = findWidget(criteria)) {
     const QPointF center(widget->rect().center());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     auto* press = new QMouseEvent(QEvent::MouseButtonPress, center,
                                   widget->mapToGlobal(center.toPoint()),
                                   Qt::LeftButton, Qt::LeftButton,
@@ -362,6 +363,18 @@ bool postClick(const QJsonObject& criteria, QString* error) {
                                     widget->mapToGlobal(center.toPoint()),
                                     Qt::LeftButton, Qt::NoButton,
                                     Qt::NoModifier);
+#else
+    const QPointF windowPos(widget->mapTo(widget->window(), center.toPoint()));
+    const QPointF screenPos(widget->mapToGlobal(center.toPoint()));
+    auto* press = new QMouseEvent(QEvent::MouseButtonPress, center,
+                                  windowPos, screenPos,
+                                  Qt::LeftButton, Qt::LeftButton,
+                                  Qt::NoModifier);
+    auto* release = new QMouseEvent(QEvent::MouseButtonRelease, center,
+                                    windowPos, screenPos,
+                                    Qt::LeftButton, Qt::NoButton,
+                                    Qt::NoModifier);
+#endif
     // Fire-and-post: reply is sent by the caller immediately, the events
     // land on the next loop iterations. Never blocks on exec() modals.
     QCoreApplication::postEvent(widget, press);

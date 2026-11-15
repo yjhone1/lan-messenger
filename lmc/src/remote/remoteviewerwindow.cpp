@@ -160,7 +160,11 @@ void RemoteCanvasWidget::wheelEvent(QWheelEvent* event) {
     return;
 
   QPoint hostPos;
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
   if(translateCoordinates(event->position().toPoint(), hostPos)) {
+#else
+  if(translateCoordinates(event->pos(), hostPos)) {
+#endif
     emit mouseWheeled(event->angleDelta().y(), hostPos.x(), hostPos.y());
   }
 }
