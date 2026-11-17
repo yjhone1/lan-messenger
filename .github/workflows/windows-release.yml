@@ -57,18 +57,35 @@ jobs:
           if (-not $vsPath) { $vsPath = & $vswhere -latest -products * -property installationPath }
           $devCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
           if (-not (Test-Path $devCmd)) { Write-Error "VsDevCmd.bat not found at $devCmd"; exit 1 }
+
           $beforeEnv = @{}
           Get-ChildItem Env: | ForEach-Object { $beforeEnv[$_.Name] = $_.Value }
           $beforePathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
           ($env:PATH -split ';') | Where-Object { $_ } | ForEach-Object { [void]$beforePathSet.Add($_) }
-          $cmdOutput = & cmd.exe /d /s /c "`"$devCmd`" -no_logo -arch=amd64 -host_arch=amd64 && set"
+
+          $tmpCmd = Join-Path $env:RUNNER_TEMP "load-msvc-x64.cmd"
+          @(
+            '@echo off'
+            "call `"$devCmd`" -no_logo -arch=amd64 -host_arch=amd64"
+            'if errorlevel 1 exit /b %errorlevel%'
+            'echo __LMC_ENV_START__'
+            'set'
+          ) | Set-Content -Path $tmpCmd -Encoding ascii
+
+          $cmdOutput = & cmd.exe /d /c $tmpCmd
           if ($LASTEXITCODE -ne 0) { Write-Error "VsDevCmd.bat failed ($LASTEXITCODE)"; exit 1 }
+
+          $inEnv = $false
+          $postPath = ""
           foreach ($line in $cmdOutput) {
+            if ($line -eq '__LMC_ENV_START__') { $inEnv = $true; continue }
+            if (-not $inEnv) { continue }
             if ($line -match '^([A-Za-z_][A-Za-z0-9_()]*?)=(.*)$') {
               $name = $Matches[1]
               $val = $Matches[2]
               if ($name -ieq 'PATH') {
-                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) }
+                $postPath = $val
+                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) -and ($_ -notmatch '\\Llvm\\') }
                 if ($newDirs) { $newDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
               } elseif (-not $beforeEnv.ContainsKey($name) -or $beforeEnv[$name] -cne $val) {
                 if ($val -notmatch "[\r\n]") {
@@ -77,6 +94,19 @@ jobs:
               }
             }
           }
+
+          $clExe = $null
+          foreach ($dir in ($postPath -split ';')) {
+            if ($dir -and (Test-Path (Join-Path $dir "cl.exe"))) {
+              $clExe = Join-Path $dir "cl.exe"
+              break
+            }
+          }
+          if (-not $clExe) { Write-Error "cl.exe (x64) not found after VsDevCmd.bat!"; exit 1 }
+          $clCmake = $clExe -replace '\\', '/'
+          "CC=$clCmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CXX=$clCmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Configured x64 MSVC compiler: $clCmake"
 
       - name: Install Qt 6 (win64_msvc2019_64)
         uses: jurplel/install-qt-action@v4
@@ -94,13 +124,30 @@ jobs:
           foreach ($dir in @("C:\Program Files\OpenSSL", "C:\Program Files\OpenSSL-Win64")) {
             if (Test-Path "$dir\include\openssl\evp.h") {
               $extraArgs += "-DOPENSSL_ROOT_DIR=$dir"
+              $extraArgs += "-DOPENSSL_INCLUDE_DIR=$dir\include"
               "OPENSSL_ROOT_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               $env:PATH = "$dir\bin;$env:PATH"
               Write-Host "Found OpenSSL x64 root at: $dir"
+              if (Test-Path "$dir\lib") {
+                $cryptoLib = Get-ChildItem -Path "$dir\lib" -Recurse -File -Include "libcrypto.lib", "libcrypto*MD.lib" |
+                  Sort-Object { if ($_.FullName -match '\\VC\\x64\\MD\\') { 0 } elseif ($_.FullName -match '\\MD\\') { 1 } else { 2 } } |
+                  Select-Object -First 1
+                $sslLib = Get-ChildItem -Path "$dir\lib" -Recurse -File -Include "libssl.lib", "libssl*MD.lib" |
+                  Sort-Object { if ($_.FullName -match '\\VC\\x64\\MD\\') { 0 } elseif ($_.FullName -match '\\MD\\') { 1 } else { 2 } } |
+                  Select-Object -First 1
+                if ($cryptoLib -and $sslLib) {
+                  $extraArgs += "-DOPENSSL_CRYPTO_LIBRARY=$($cryptoLib.FullName)"
+                  $extraArgs += "-DOPENSSL_SSL_LIBRARY=$($sslLib.FullName)"
+                  Write-Host "OpenSSL x64 crypto lib: $($cryptoLib.FullName)"
+                  Write-Host "OpenSSL x64 ssl lib: $($sslLib.FullName)"
+                }
+              }
               break
             }
           }
           cmake -B build-x64 -G "Ninja" `
+            -DCMAKE_C_COMPILER="$env:CC" `
+            -DCMAKE_CXX_COMPILER="$env:CXX" `
             -DCMAKE_BUILD_TYPE=Release `
             -DLMC_VERSION="$env:LMC_VERSION" `
             -DLMC_BUILD_TESTS=ON `
@@ -232,18 +279,35 @@ jobs:
           if (-not $vsPath) { $vsPath = & $vswhere -latest -products * -property installationPath }
           $devCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
           if (-not (Test-Path $devCmd)) { Write-Error "VsDevCmd.bat not found at $devCmd"; exit 1 }
+
           $beforeEnv = @{}
           Get-ChildItem Env: | ForEach-Object { $beforeEnv[$_.Name] = $_.Value }
           $beforePathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
           ($env:PATH -split ';') | Where-Object { $_ } | ForEach-Object { [void]$beforePathSet.Add($_) }
-          $cmdOutput = & cmd.exe /d /s /c "`"$devCmd`" -no_logo -arch=x86 -host_arch=x86 && set"
+
+          $tmpCmd = Join-Path $env:RUNNER_TEMP "load-msvc-x86.cmd"
+          @(
+            '@echo off'
+            "call `"$devCmd`" -no_logo -arch=x86 -host_arch=x86"
+            'if errorlevel 1 exit /b %errorlevel%'
+            'echo __LMC_ENV_START__'
+            'set'
+          ) | Set-Content -Path $tmpCmd -Encoding ascii
+
+          $cmdOutput = & cmd.exe /d /c $tmpCmd
           if ($LASTEXITCODE -ne 0) { Write-Error "VsDevCmd.bat failed ($LASTEXITCODE)"; exit 1 }
+
+          $inEnv = $false
+          $postPath = ""
           foreach ($line in $cmdOutput) {
+            if ($line -eq '__LMC_ENV_START__') { $inEnv = $true; continue }
+            if (-not $inEnv) { continue }
             if ($line -match '^([A-Za-z_][A-Za-z0-9_()]*?)=(.*)$') {
               $name = $Matches[1]
               $val = $Matches[2]
               if ($name -ieq 'PATH') {
-                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) }
+                $postPath = $val
+                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) -and ($_ -notmatch '\\Llvm\\') }
                 if ($newDirs) { $newDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
               } elseif (-not $beforeEnv.ContainsKey($name) -or $beforeEnv[$name] -cne $val) {
                 if ($val -notmatch "[\r\n]") {
@@ -252,6 +316,19 @@ jobs:
               }
             }
           }
+
+          $clExe = $null
+          foreach ($dir in ($postPath -split ';')) {
+            if ($dir -and (Test-Path (Join-Path $dir "cl.exe"))) {
+              $clExe = Join-Path $dir "cl.exe"
+              break
+            }
+          }
+          if (-not $clExe) { Write-Error "cl.exe (x86) not found after VsDevCmd.bat!"; exit 1 }
+          $clCmake = $clExe -replace '\\', '/'
+          "CC=$clCmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CXX=$clCmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Configured x86 MSVC compiler: $clCmake"
 
       - name: Set up Python for Qt 5.15 Installer
         uses: actions/setup-python@v6
@@ -351,6 +428,8 @@ jobs:
           Write-Host "Qt5_DIR=$env:Qt5_DIR | Qt_DIR=$env:Qt_DIR"
           $env:PATH = "$env:OPENSSL_BIN_DIR;$env:OPENSSL_ROOT_DIR\bin;$env:PATH"
           cmake -B build-x86 -G "Ninja" `
+            -DCMAKE_C_COMPILER="$env:CC" `
+            -DCMAKE_CXX_COMPILER="$env:CXX" `
             -DCMAKE_BUILD_TYPE=Release `
             -DLMC_VERSION="$env:LMC_VERSION" `
             -DLMC_BUILD_TESTS=ON `
