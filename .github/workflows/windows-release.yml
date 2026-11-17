@@ -444,7 +444,18 @@ jobs:
 
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
-            choco install nsis -y
+            $cmd = Get-Command makensis -ErrorAction SilentlyContinue
+            if ($cmd) {
+              $makensis = $cmd.Source
+            } else {
+              choco install nsis -y
+              $cmd = Get-Command makensis -ErrorAction SilentlyContinue
+              if ($cmd) { $makensis = $cmd.Source }
+            }
+          }
+          if (-not (Test-Path $makensis)) {
+            Write-Error "makensis.exe not found!"
+            exit 1
           }
 
           $verParts = ($ver.Split('.') | ForEach-Object { [int]$_ })
