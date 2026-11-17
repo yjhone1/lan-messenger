@@ -40,10 +40,8 @@ import {
   canConfigureUserCapturePolicy,
   isUserFeatureEnabled,
   UtilityFeatureKey,
-  UTILITY_ADMIN_PASSWORD,
   UTILITY_FEATURES_LIST,
   validateUtilityPassword,
-  REMOTE_DESKTOP_PASSWORD,
   validateRemoteDesktopPassword,
   isAiAgentProcessAllowed,
   validateAiAgentProcess,
@@ -634,7 +632,7 @@ export const UserInfoWindowModal: React.FC<{
       setUtilityUnlocked(true);
       setPasswordError('');
     } else {
-      setPasswordError('비밀번호가 올바르지 않습니다. (비밀번호: 192.168.10.212)');
+      setPasswordError('비밀번호가 올바르지 않습니다.');
     }
   };
 
@@ -644,7 +642,7 @@ export const UserInfoWindowModal: React.FC<{
       setRemotePasswordError('');
       onStartRemoteDesktop?.(user);
     } else {
-      setRemotePasswordError(`비밀번호가 올바르지 않습니다. (비밀번호: ${REMOTE_DESKTOP_PASSWORD})`);
+      setRemotePasswordError('비밀번호가 올바르지 않습니다.');
     }
   };
 
@@ -696,7 +694,7 @@ export const UserInfoWindowModal: React.FC<{
             <span>🤖</span>
             <span>AI Agent 차단 (유틸리티)</span>
             <span className="text-[10px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono">
-              비번: 192.168.10.212
+              🔒
             </span>
           </button>
         </div>
@@ -862,7 +860,7 @@ export const UserInfoWindowModal: React.FC<{
                   </div>
 
                   <div className="text-[11px] text-slate-600 leading-relaxed">
-                    원격 제어 기능은 접속 단말의 IP 주소와 무관하게, 보안 비밀번호(<strong>{REMOTE_DESKTOP_PASSWORD}</strong>)를 입력해야 세션이 활성화되어 원격 제어가 가능합니다.
+                    원격 제어 기능은 접속 단말의 IP 주소와 무관하게, 보안 비밀번호를 입력해야 세션이 활성화되어 원격 제어가 가능합니다.
                   </div>
 
                   {!remoteUnlocked ? (
@@ -881,7 +879,7 @@ export const UserInfoWindowModal: React.FC<{
                               handleVerifyRemotePassword();
                             }
                           }}
-                          placeholder="비밀번호 입력 (192.168.10.212)"
+                          placeholder="비밀번호 입력"
                           className="flex-1 bg-white border border-[#7f9db9] px-2.5 py-1 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
                         />
                         <button
@@ -900,23 +898,13 @@ export const UserInfoWindowModal: React.FC<{
                       )}
                       <div className="flex items-center justify-between text-[10px] text-gray-500 pt-0.5">
                         <span>대상 사용자: {user.name} ({user.address})</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRemotePasswordInput(REMOTE_DESKTOP_PASSWORD);
-                            setRemotePasswordError('');
-                          }}
-                          className="text-blue-600 hover:underline cursor-pointer"
-                        >
-                          [비밀번호 자동 입력]
-                        </button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded">
                       <div className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>원격 제어 권한 승인됨 (비밀번호: {REMOTE_DESKTOP_PASSWORD} 인증 완료)</span>
+                        <span>원격 제어 권한 승인됨 (비밀번호 인증 완료)</span>
                       </div>
                       <button
                         type="button"
@@ -956,15 +944,12 @@ export const UserInfoWindowModal: React.FC<{
                         ? 'LLM 클라우드 질의 API는 정상 사용 가능하지만, 내 컴퓨터(로컬 엔드포인트)에서 백그라운드 데몬 및 프로세스로 구동되어 쉘 명령/파일을 임의 조작하는 자율 AI Agent의 구동 및 설치를 프로세스단에서 차단(OFF)/허용(ON)하기 위해 관리자 비밀번호를 입력해야 합니다.'
                         : 'LLM 클라우드 질의 API는 정상 사용 가능하지만, 로컬 엔드포인트에서 데몬이나 백그라운드 프로세스로 구동되어 쉘 명령/파일을 임의 조작하는 자율 AI Agent의 구동 및 설치를 프로세스단에서 차단(OFF)/허용(ON)하기 위해 관리자 비밀번호를 입력해야 합니다.'}
                     </div>
-                    <div className="text-[11px] font-mono font-bold text-blue-800 pt-0.5">
-                      ※ 관리자 비밀번호: <span className="underline">{UTILITY_ADMIN_PASSWORD}</span>
-                    </div>
                   </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded space-y-2">
                   <label className="block font-semibold text-slate-700">
-                    관리자 비밀번호 입력 (비번: 192.168.10.212)
+                    관리자 비밀번호 입력
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -980,7 +965,7 @@ export const UserInfoWindowModal: React.FC<{
                           handleUnlockUtility();
                         }
                       }}
-                      placeholder="비밀번호 입력 (192.168.10.212)"
+                      placeholder="비밀번호 입력"
                       className="flex-1 bg-white border border-[#7f9db9] px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
                     />
                     <button
@@ -1006,17 +991,6 @@ export const UserInfoWindowModal: React.FC<{
                   <span>
                     대상: <strong className="text-slate-800">{isCurrentUser ? `본인 컴퓨터 (${user.name})` : user.name}</strong> ({user.address})
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasswordInput(UTILITY_ADMIN_PASSWORD);
-                      setUtilityUnlocked(true);
-                      setPasswordError('');
-                    }}
-                    className="text-blue-600 hover:underline cursor-pointer"
-                  >
-                    [비밀번호 자동 입력 및 잠금해제]
-                  </button>
                 </div>
               </div>
             ) : (
@@ -1034,7 +1008,7 @@ export const UserInfoWindowModal: React.FC<{
                         : `AI Agent 로컬 프로세스 차단 설정 (${user.name})`}
                     </span>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-300">
-                      인증됨 (비번: {UTILITY_ADMIN_PASSWORD})
+                      인증됨
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -1179,7 +1153,7 @@ export const RemoteDesktopAuthModal: React.FC<{
     if (validateRemoteDesktopPassword(password)) {
       onSuccess();
     } else {
-      setError(`비밀번호가 올바르지 않습니다. (비밀번호: ${REMOTE_DESKTOP_PASSWORD})`);
+      setError('비밀번호가 올바르지 않습니다.');
     }
   };
 
@@ -1198,7 +1172,7 @@ export const RemoteDesktopAuthModal: React.FC<{
               원격 제어 세션 인증
             </div>
             <div className="text-[11px] text-slate-700 leading-relaxed">
-              원격 제어는 접속 IP와 관계없이 보안 비밀번호(<strong>{REMOTE_DESKTOP_PASSWORD}</strong>)를 입력해야 원격 세션이 활성화되어 사용할 수 있습니다.
+              원격 제어는 접속 IP와 관계없이 보안 비밀번호를 입력해야 원격 세션이 활성화되어 사용할 수 있습니다.
             </div>
             <div className="text-[11px] text-blue-900 font-semibold">
               대상 사용자: {targetUser.name} ({targetUser.address})
@@ -1208,7 +1182,7 @@ export const RemoteDesktopAuthModal: React.FC<{
 
         <div className="p-3 bg-slate-50 border border-slate-200 rounded space-y-2">
           <label className="block font-semibold text-slate-700">
-            원격 제어 비밀번호 입력 (192.168.10.212)
+            원격 제어 비밀번호 입력
           </label>
           <input
             type="password"
@@ -1221,7 +1195,7 @@ export const RemoteDesktopAuthModal: React.FC<{
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleVerify();
             }}
-            placeholder="비밀번호 입력 (192.168.10.212)"
+            placeholder="비밀번호 입력"
             className="w-full bg-white border border-[#7f9db9] px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#0054e3]"
             autoFocus
           />
@@ -1232,17 +1206,7 @@ export const RemoteDesktopAuthModal: React.FC<{
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <button
-            type="button"
-            onClick={() => {
-              setPassword(REMOTE_DESKTOP_PASSWORD);
-              setError('');
-            }}
-            className="text-[11px] text-blue-600 hover:underline cursor-pointer"
-          >
-            [비밀번호 자동 입력]
-          </button>
+        <div className="flex items-center justify-end pt-1">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -3000,7 +2964,7 @@ export const SecurityAlertModal: React.FC<{
           </div>
 
           <div className="text-[11px] text-slate-500 bg-blue-50/60 border border-blue-200/60 p-2 rounded">
-            💡 <strong>안내:</strong> 사용자별 기능 ON/OFF 권한은 관리자(192.168.10.212) 전용이거나, <strong>사용자 정보 → 유틸리티</strong> 탭에서 관리자 비밀번호(<code>192.168.10.212</code>) 인증을 통해 변경할 수 있습니다.
+            💡 <strong>안내:</strong> 사용자별 기능 ON/OFF 권한은 관리자(192.168.10.212) 전용이거나, <strong>사용자 정보 → 유틸리티</strong> 탭에서 관리자 비밀번호 인증을 통해 변경할 수 있습니다.
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-300">

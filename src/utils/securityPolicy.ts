@@ -1,5 +1,5 @@
 /**
- * Security & Process Execution Policy Engine for LAN Messenger v1.4.0.3
+ * Security & Process Execution Policy Engine for LAN Messenger v1.4.0.4
  * 
  * Policy Rules:
  * 1. Remote Desktop (원격제어):
@@ -87,7 +87,7 @@ export function validateRemoteDesktopRequest(
   return {
     allowed: false,
     requiresPassword: true,
-    message: `원격 제어를 구동하려면 보안 인증 비밀번호(${REMOTE_DESKTOP_PASSWORD})를 입력해야 합니다.`,
+    message: '원격 제어를 구동하려면 보안 인증 비밀번호를 입력해야 합니다.',
   };
 }
 
@@ -192,7 +192,7 @@ export function validateAiAgentProcess(
     agent,
     processBinary: agent.processBinary,
     userName,
-    message: `[프로세스 실행 차단] '${agent.name}' (${agent.processBinary})\n\nLLM 클라우드 질의는 허용되지만, 로컬 자율 데몬 및 백그라운드 프로세스 구동은 보안 정책에 의해 차단되었습니다.\n\n해제를 원하실 경우 [사용자 정보 > 유틸리티 탭]에서 관리자 인증(비밀번호: ${UTILITY_ADMIN_PASSWORD}) 후 구동을 허용할 수 있습니다.`,
+    message: `[프로세스 실행 차단] '${agent.name}' (${agent.processBinary})\n\nLLM 클라우드 질의는 허용되지만, 로컬 자율 데몬 및 백그라운드 프로세스 구동은 보안 정책에 의해 차단되었습니다.\n\n해제를 원하실 경우 [사용자 정보 > 유틸리티 탭]에서 관리자 비밀번호 인증 후 구동을 허용할 수 있습니다.`,
   };
 }
 
@@ -217,7 +217,7 @@ export const UTILITY_FEATURES_LIST: UtilityFeatureMetadata[] = [
     shortLabel: '원격제어',
     icon: '🖥️',
     category: 'system',
-    description: '192.168.10.212 보안 비밀번호 기반 원격 화면 공유 및 원격 데스크톱 제어',
+    description: '보안 비밀번호 인증 기반 원격 화면 공유 및 원격 데스크톱 제어',
   },
   {
     key: 'screenCapture',

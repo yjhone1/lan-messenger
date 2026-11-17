@@ -41,7 +41,7 @@ test('validateRemoteDesktopRequest allows access when password is verified regar
   const denied = validateRemoteDesktopRequest('wrong_pass', 'Minho Park (Win7)');
   assert.equal(denied.allowed, false);
   assert.equal(denied.requiresPassword, true);
-  assert.match(denied.message, /192\.168\.10\.212/);
+  assert.doesNotMatch(denied.message, /192\.168\.10\.212/);
 });
 
 test('evaluateCaptureUsage confirms Screen Capture is unconditionally active upon installation', () => {
@@ -110,7 +110,7 @@ test('isAiAgentProcessAllowed and validateAiAgentProcess enforce process-level b
   assert.equal(autogptCheck.processBinary, 'autogpt.exe / python -m autogpt');
   assert.match(autogptCheck.message, /프로세스 실행 차단/);
   assert.match(autogptCheck.message, /AutoGPT/);
-  assert.match(autogptCheck.message, /192\.168\.10\.212/);
+  assert.doesNotMatch(autogptCheck.message, /192\.168\.10\.212/);
 
   const opencodeCheck = validateAiAgentProcess(sampleUser as User, 'opencode');
   assert.equal(opencodeCheck.allowed, false);

@@ -420,7 +420,7 @@
              <enum>QLineEdit::Password</enum>
             </property>
             <property name="placeholderText">
-             <string>Enter password (192.168.10.212)</string>
+             <string>Enter password</string>
             </property>
            </widget>
           </item>

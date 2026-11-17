@@ -1012,7 +1012,7 @@ void lmcCore::startRemoteDesktop(QString* lpszUserId) {
   const QString pass = QInputDialog::getText(
       pMainWindow,
       tr("Remote Desktop Authentication"),
-      tr("Enter security password (192.168.10.212) to start Remote Desktop:"),
+      tr("Enter security password to start Remote Desktop:"),
       QLineEdit::Password,
       QString(),
       &ok);
@@ -1022,7 +1022,7 @@ void lmcCore::startRemoteDesktop(QString* lpszUserId) {
     QMessageBox::warning(
         pMainWindow,
         tr("Authentication Failed"),
-        tr("Incorrect password. Please enter 192.168.10.212."));
+        tr("Incorrect password."));
     return;
   }
 

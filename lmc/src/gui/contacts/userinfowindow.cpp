@@ -232,7 +232,7 @@ void lmcUserInfoWindow::emitUtilityPolicyUpdate(void) {
 
 void lmcUserInfoWindow::toggleCapturePolicy(void) {
   QMessageBox::information(this, tr("Screen Capture Information"),
-    tr("Screen Capture feature is always enabled by default in v1.4.0.3 for all users."));
+    tr("Screen Capture feature is always enabled by default in v1.4.0.4 for all users."));
 }
 
 void lmcUserInfoWindow::onScreenCaptureClicked(void) {
@@ -252,7 +252,7 @@ void lmcUserInfoWindow::onUnlockUtilityClicked(void) {
   const QString entered = ui.txtUtilityPassword->text();
   if(!AiAgentBlocker::verifyAdminPassword(entered)) {
     QMessageBox::warning(this, tr("Authentication Failed"),
-      tr("Incorrect administrator password. Enter 192.168.10.212."));
+      tr("Incorrect administrator password."));
     return;
   }
   m_utilityUnlocked = true;

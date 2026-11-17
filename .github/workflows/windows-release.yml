@@ -14,7 +14,7 @@ permissions:
 env:
   QT6_VERSION: '6.6.3'
   QT5_VERSION: '5.15.2'
-  LMC_VERSION: '1.4.0.3'
+  LMC_VERSION: '1.4.0.4'
 
 jobs:
   build-win64:
@@ -49,9 +49,34 @@ jobs:
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Setup MSVC x64 Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { Write-Error "vswhere.exe not found"; exit 1 }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { $vsPath = & $vswhere -latest -products * -property installationPath }
+          $devCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
+          if (-not (Test-Path $devCmd)) { Write-Error "VsDevCmd.bat not found at $devCmd"; exit 1 }
+          $beforeEnv = @{}
+          Get-ChildItem Env: | ForEach-Object { $beforeEnv[$_.Name] = $_.Value }
+          $beforePathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          ($env:PATH -split ';') | Where-Object { $_ } | ForEach-Object { [void]$beforePathSet.Add($_) }
+          $cmdOutput = & cmd.exe /d /s /c "`"$devCmd`" -no_logo -arch=amd64 -host_arch=amd64 && set"
+          if ($LASTEXITCODE -ne 0) { Write-Error "VsDevCmd.bat failed ($LASTEXITCODE)"; exit 1 }
+          foreach ($line in $cmdOutput) {
+            if ($line -match '^([A-Za-z_][A-Za-z0-9_()]*?)=(.*)$') {
+              $name = $Matches[1]
+              $val = $Matches[2]
+              if ($name -ieq 'PATH') {
+                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) }
+                if ($newDirs) { $newDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+              } elseif (-not $beforeEnv.ContainsKey($name) -or $beforeEnv[$name] -cne $val) {
+                if ($val -notmatch "[\r\n]") {
+                  "$name=$val" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                }
+              }
+            }
+          }
 
       - name: Install Qt 6 (win64_msvc2019_64)
         uses: jurplel/install-qt-action@v4
@@ -160,7 +185,7 @@ jobs:
           Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x64.zip" -Force
 
       - name: Upload x64 Stage Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stage-win64
           path: |
@@ -199,14 +224,39 @@ jobs:
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Setup MSVC x86 Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x86
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { Write-Error "vswhere.exe not found"; exit 1 }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { $vsPath = & $vswhere -latest -products * -property installationPath }
+          $devCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
+          if (-not (Test-Path $devCmd)) { Write-Error "VsDevCmd.bat not found at $devCmd"; exit 1 }
+          $beforeEnv = @{}
+          Get-ChildItem Env: | ForEach-Object { $beforeEnv[$_.Name] = $_.Value }
+          $beforePathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          ($env:PATH -split ';') | Where-Object { $_ } | ForEach-Object { [void]$beforePathSet.Add($_) }
+          $cmdOutput = & cmd.exe /d /s /c "`"$devCmd`" -no_logo -arch=x86 -host_arch=x86 && set"
+          if ($LASTEXITCODE -ne 0) { Write-Error "VsDevCmd.bat failed ($LASTEXITCODE)"; exit 1 }
+          foreach ($line in $cmdOutput) {
+            if ($line -match '^([A-Za-z_][A-Za-z0-9_()]*?)=(.*)$') {
+              $name = $Matches[1]
+              $val = $Matches[2]
+              if ($name -ieq 'PATH') {
+                $newDirs = ($val -split ';') | Where-Object { $_ -and -not $beforePathSet.Contains($_) }
+                if ($newDirs) { $newDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+              } elseif (-not $beforeEnv.ContainsKey($name) -or $beforeEnv[$name] -cne $val) {
+                if ($val -notmatch "[\r\n]") {
+                  "$name=$val" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                }
+              }
+            }
+          }
 
       - name: Set up Python for Qt 5.15 Installer
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Install Qt 5.15 (win32_msvc2019 for x86 / Windows 7 Compat)
         uses: jurplel/install-qt-action@v4
@@ -220,7 +270,7 @@ jobs:
           cache: true
 
       - name: Cache 32-bit OpenSSL (Win32 Prebuilt)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\OpenSSL-Win32
           key: win32-openssl-prebuilt-${{ runner.os }}-v1
@@ -405,7 +455,7 @@ jobs:
           Compress-Archive -Path "$stageDir/*" -DestinationPath "lan-messenger-windows-x86.zip" -Force
 
       - name: Upload x86 Stage Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stage-win32
           path: |
@@ -422,7 +472,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download x64 & x86 Build Stages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: stage-win*
           merge-multiple: true
@@ -483,7 +533,7 @@ jobs:
           Move-Item "lmc/setup/win32/lmc-$ver-win32.exe" "lmc-$ver-win32.exe" -Force
 
       - name: Upload Windows Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lan-messenger-windows-v${{ env.LMC_VERSION }}
           path: |
@@ -495,7 +545,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "v${{ env.LMC_VERSION }}"
           name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release (32/64-bit Universal)"
