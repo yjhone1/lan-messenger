@@ -25,7 +25,7 @@
 #define REMOTECLIENT_H
 
 #include <QObject>
-#include <QTcpSocket>
+#include <QSslSocket>
 #include <QPixmap>
 #include <QByteArray>
 #include "remotedefinitions.h"
@@ -37,7 +37,7 @@ public:
   explicit RemoteClient(QObject* parent = nullptr);
   ~RemoteClient();
 
-  void connectToHost(const QString& host, quint16 port);
+  void connectToHost(const QString& host, quint16 port, const QByteArray& token, const QByteArray& fingerprint);
   void disconnectFromHost();
   bool isConnected() const;
 
@@ -63,7 +63,9 @@ private:
   void sendPacket(quint8 type, const QByteArray& payload);
   void processPacket(quint8 type, const QByteArray& payload);
 
-  QTcpSocket* m_socket;
+  QSslSocket* m_socket;
+  QByteArray m_token;
+  QByteArray m_fingerprint;
   QByteArray m_receiveBuffer;
 };
 

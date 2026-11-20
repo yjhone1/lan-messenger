@@ -261,9 +261,9 @@ RemoteViewerWindow::~RemoteViewerWindow() {
   }
 }
 
-void RemoteViewerWindow::connectToHost(const QString& host, quint16 port) {
+void RemoteViewerWindow::connectToHost(const QString& host, quint16 port, const QByteArray& token, const QByteArray& fingerprint) {
   m_lblStatus->setText(tr("Connecting to %1:%2...").arg(host).arg(port));
-  m_client->connectToHost(host, port);
+  m_client->connectToHost(host, port, token, fingerprint);
 }
 
 void RemoteViewerWindow::closeEvent(QCloseEvent* event) {

@@ -1,24 +1,4 @@
-/**
- * Security & Process Execution Policy Engine for LAN Messenger v1.4.0.4
- * 
- * Policy Rules:
- * 1. Remote Desktop (원격제어):
- *    - Located at the bottom of the System (시스템) tab.
- *    - IP restriction is removed: Any IP can initiate remote desktop IF AND ONLY IF
- *      the operator enters the authentication password '192.168.10.212'.
- * 
- * 2. Screen Capture (오픈소스캡쳐):
- *    - Completely unrestricted: Enabled by default for all users upon installing LAN Messenger.
- *    - No active/inactive toggle or administrative blocking.
- * 
- * 3. AI Agent Local Process Blocker (유틸리티 탭):
- *    - Protected by password '192.168.10.212'.
- *    - Blocks local autonomous background daemons, terminal execution, and process-level
- *      loops of the top 10 representative AI Agents (LLM API text chat is allowed; local daemon/process is blocked).
- *    - Granular per-user and per-agent toggle:
- *      * ON = 로컬 프로세스 구동 허용 (Allowed)
- *      * OFF = 로컬 프로세스단 차단 및 실행 금지 (Blocked - Default security posture)
- */
+/** Browser policy preview only. Local agent settings default to allow; native remote access uses per-session consent and TLS. */
 
 import {
   AiAgentKey,
@@ -31,8 +11,6 @@ import {
   User,
 } from '../types/lmc';
 
-export const REMOTE_DESKTOP_PASSWORD = '192.168.10.212';
-export const UTILITY_ADMIN_PASSWORD = '192.168.10.212';
 export const AUTHORIZED_ADMIN_IP = '192.168.10.212'; // Retained for display reference
 
 /**
@@ -47,15 +25,6 @@ export function normalizeIp(ip: string): string {
   return trimmed;
 }
 
-/**
- * Validates the Remote Desktop Authentication Password (192.168.10.212).
- * Works regardless of client IP.
- */
-export function validateRemoteDesktopPassword(password: string): boolean {
-  if (!password) return false;
-  return password.trim() === REMOTE_DESKTOP_PASSWORD;
-}
-
 export interface RemoteDesktopRequestCheck {
   allowed: boolean;
   requiresPassword: boolean;
@@ -64,18 +33,14 @@ export interface RemoteDesktopRequestCheck {
 
 /**
  * Validates remote desktop control request permission.
- * Now IP-independent: Unlocks when the operator verifies password '192.168.10.212'.
+ * Preview consent only; a password string never grants access.
  */
 export function validateRemoteDesktopRequest(
   passwordOrVerified: string | boolean,
   targetPeerName?: string
 ): RemoteDesktopRequestCheck {
   const peerMsg = targetPeerName ? ` (${targetPeerName} 대상)` : '';
-  const isUnlocked =
-    typeof passwordOrVerified === 'boolean'
-      ? passwordOrVerified
-      : validateRemoteDesktopPassword(passwordOrVerified);
-
+  const isUnlocked = passwordOrVerified === true;
   if (isUnlocked) {
     return {
       allowed: true,
@@ -87,7 +52,7 @@ export function validateRemoteDesktopRequest(
   return {
     allowed: false,
     requiresPassword: true,
-    message: '원격 제어를 구동하려면 보안 인증 비밀번호를 입력해야 합니다.',
+    message: '원격 제어는 상대방의 세션별 승인이 필요합니다.',
   };
 }
 
@@ -126,25 +91,17 @@ export function evaluateUserCaptureUsage(): CaptureUsageCheck & { userSpecific: 
 }
 
 /**
- * Validates the Utility Tab Administrator Password (192.168.10.212).
- */
-export function validateUtilityPassword(password: string): boolean {
-  if (!password) return false;
-  return password.trim() === UTILITY_ADMIN_PASSWORD;
-}
-
-/**
  * Checks whether a specific AI Agent process is permitted to run on the endpoint.
- * Default: false (OFF = 프로세스 차단 / 실행 방지).
+ * Default: true (ON = 로컬 실행 허용).
  */
 export function isAiAgentProcessAllowed(
   user: { aiAgentBlocks?: UserAiAgentBlockMap } | null | undefined,
   agentKey: AiAgentKey
 ): boolean {
   if (!user || !user.aiAgentBlocks) {
-    return DEFAULT_AI_AGENT_BLOCKS[agentKey] ?? false;
+    return DEFAULT_AI_AGENT_BLOCKS[agentKey] ?? true;
   }
-  return user.aiAgentBlocks[agentKey] === true;
+  return user.aiAgentBlocks[agentKey] !== false;
 }
 
 export interface AiAgentProcessCheck {

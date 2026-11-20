@@ -111,6 +111,7 @@ void lmcTcpNetwork::addConnection(QString* lpszUserId, QString* lpszAddress, int
     locMsgStream = msgStream;
   else
     messageMap.insert(*lpszUserId, msgStream);
+  msgStream->setProperty("strictProtocol", crypto && !crypto->isLegacyCompatibility());
   msgStream->init();
 }
 
@@ -128,7 +129,7 @@ void lmcTcpNetwork::sendMessage(QString* lpszReceiverId, QString* lpszData) {
     msgStream = messageMap.value(*lpszReceiverId, NULL);
 
   if(msgStream) {
-    bool legacyCompat = crypto ? crypto->isLegacyCompatibility() : true;
+    bool legacyCompat = crypto ? crypto->isLegacySession(*lpszReceiverId) : true;
     lmcTrace::write("Sending TCP data stream to user " + *lpszReceiverId +
                     " [" + (legacyCompat ? "Legacy v1.0" : "Strict v3.0") + "]");
     QByteArray clearData = lpszData->toUtf8();
@@ -244,29 +245,73 @@ void lmcTcpNetwork::server_newConnection(void) {
   lmcTrace::write("New connection received");
   QTcpSocket* socket = server->nextPendingConnection();
   connect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
+  connect(socket, &QAbstractSocket::disconnected, socket, &QObject::deleteLater);
+  QTimer::singleShot(5000, socket, [socket] { if(!socket->property("identified").toBool()) socket->abort(); });
 }
 
 void lmcTcpNetwork::socket_readyRead(void) {
   QTcpSocket* socket = (QTcpSocket*)sender();
-  disconnect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
-
-  QByteArray buffer = socket->read(64);
-  if(buffer.startsWith("MSG")) {
-    //	read user id from socket and assign socket to correct message stream
-    QByteArray rawId = buffer.mid(3);
-    QString userId = QString::fromUtf8(rawId);
-    if(userId.contains(QChar::ReplacementCharacter))
-      userId = QString::fromLocal8Bit(rawId);
-    addMsgSocket(&userId, socket);
-  } else if(buffer.startsWith("FILE")) {
-    //	read transfer id from socket and assign socket to correct file receiver
-    QString id(buffer.mid(4, 32)); // 4 is length of "FILE", 32 is length of File Id
-    QByteArray rawId = buffer.mid(36);
-    QString userId = QString::fromUtf8(rawId);
-    if(userId.contains(QChar::ReplacementCharacter))
-      userId = QString::fromLocal8Bit(rawId);
-    addFileSocket(&id, &userId, socket);
+  // Match a complete known ID without consuming partial identifiers or the next frame.
+  const QByteArray pending = socket->peek(65536);
+  QStringList ids = messageMap.keys();
+  ids << localId;
+  for(const auto* receiver : receiveList) ids << receiver->peerId;
+  for(const QString& knownId : ids) {
+    const QByteArray id = knownId.toLocal8Bit();
+    const QByteArray msg = QByteArray("MSG") + id;
+    if(pending == msg) {
+      socket->read(msg.size());
+      socket->setProperty("identified", true);
+      disconnect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
+      QString userId = knownId;
+      addMsgSocket(&userId, socket);
+      return;
+    }
+    if(pending.startsWith("FILE") && pending.size() >= 36 + id.size() && pending.mid(36, id.size()) == id) {
+      socket->read(36 + id.size());
+      socket->setProperty("identified", true);
+      disconnect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
+      QString transferId = QString::fromLatin1(pending.mid(4, 32));
+      QString userId = knownId;
+      addFileSocket(&transferId, &userId, socket);
+      return;
+    }
   }
+  // New incoming peers are not in messageMap yet; their complete IDs are variable length.
+  // A short idle interval is only a legacy fallback. New peers use a terminated UTF-8 ID below.
+  if(pending.startsWith("MSG2\n")) {
+    const int end = pending.indexOf('\n', 5);
+    if(end < 0) { if(pending.size() > 1024) socket->abort(); return; }
+    const QByteArray id = pending.mid(5, end - 5);
+    if(id.isEmpty() || id.size() > 512) { socket->abort(); return; }
+    socket->read(end + 1);
+    socket->setProperty("identified", true);
+    disconnect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
+    QString userId = QString::fromUtf8(id);
+    addMsgSocket(&userId, socket);
+    return;
+  }
+  if(!pending.startsWith("MSG") && !QByteArray("MSG2\n").startsWith(pending) && !pending.startsWith("FILE") && !QByteArray("FILE").startsWith(pending)) { socket->abort(); return; }
+  if(pending.size() < 3 || QByteArray("MSG2\n").startsWith(pending)) return;
+  if(!pending.startsWith("MSG2\n") && pending.startsWith("MSG")) {
+    // Legacy clients send no delimiter. Wait for a bounded quiet period; this fallback remains best effort.
+    if(!socket->property("legacyScheduled").toBool()) {
+      socket->setProperty("legacyScheduled", true);
+      QTimer::singleShot(150, socket, [this, socket] {
+        socket->setProperty("legacyScheduled", false);
+        if(socket->property("identified").toBool()) return;
+        QByteArray raw = socket->peek(1025);
+        if(raw.size() < 4 || raw.size() > 515 || !raw.startsWith("MSG")) { socket->abort(); return; }
+        socket->read(raw.size());
+        socket->setProperty("identified", true);
+        disconnect(socket, &QIODevice::readyRead, this, &lmcTcpNetwork::socket_readyRead);
+        QString id = QString::fromUtf8(raw.mid(3));
+        if(id.contains(QChar::ReplacementCharacter)) id = QString::fromLocal8Bit(raw.mid(3));
+        addMsgSocket(&id, socket);
+      });
+    }
+  }
+  return;
 }
 
 void lmcTcpNetwork::msgStream_connectionLost(QString* lpszUserId) {
@@ -325,6 +370,9 @@ void lmcTcpNetwork::receiveMessage(QString* lpszUserId, QString* lpszAddress, QB
   lmcTrace::write("TCP stream type " + QString::number(pHeader->type) +
                   " received from user " + *lpszUserId + " at " + *lpszAddress);
 
+  const bool legacyFrame = !datagram.startsWith("PUBKv3") && !datagram.startsWith("HNDv30") && !datagram.startsWith("MSGv30");
+  if(crypto && legacyFrame != crypto->isLegacyCompatibility() && pHeader->type != DT_Message) { delete pHeader; return; }
+  if(crypto && pHeader->type == DT_Message && legacyFrame != crypto->isLegacySession(*lpszUserId)) { delete pHeader; return; }
   switch(pHeader->type) {
   case DT_PublicKey:
     //	send a session key back

@@ -10,7 +10,6 @@ export const VERSION_CONFIG = {
 
 export const APP_VERSION = VERSION_CONFIG.version;
 export const AUTHORIZED_ADMIN_IP = '192.168.10.212';
-export const UTILITY_ADMIN_PASSWORD = '192.168.10.212';
 
 export type AiAgentKey =
   | 'autogpt'
@@ -140,17 +139,17 @@ export const REPRESENTATIVE_AI_AGENTS: AiAgentProcessInfo[] = [
 ];
 
 export const DEFAULT_AI_AGENT_BLOCKS: UserAiAgentBlockMap = {
-  autogpt: false,          // false = 차단(OFF, 권장 보안 상태)
-  babyagi: false,
-  devin: false,
-  metagpt: false,
-  crewai: false,
-  autogen: false,
-  claudeComputerUse: false,
-  openaiOperator: false,
-  agentgpt: false,
-  chatdev: false,
-  opencode: false,
+  autogpt: true,          // true = 허용(ON, 최초 설치 기본값)
+  babyagi: true,
+  devin: true,
+  metagpt: true,
+  crewai: true,
+  autogen: true,
+  claudeComputerUse: true,
+  openaiOperator: true,
+  agentgpt: true,
+  chatdev: true,
+  opencode: true,
 };
 
 export interface UserUtilityFeatures {

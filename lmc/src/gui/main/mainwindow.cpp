@@ -28,6 +28,7 @@
 #include <QUrl>
 #include <QShortcut>
 #include "mainwindow.h"
+#include "security/utilitydialog.h"
 #include "gui/widgets/actionhelper.h"
 #include "gui/chat/messagelog.h"
 #include "messaging/history.h"
@@ -705,7 +706,10 @@ void lmcMainWindow::createMainMenu(void) {
   exitAction = ActionHelper::createAction(pFileMenu, "E&xit", this, &lmcMainWindow::trayExitAction_triggered,
                                           QIcon(QPixmap(IDR_CLOSE, "PNG")));
   pToolsMenu = pMainMenu->addMenu("&Tools");
-  captureAction = ActionHelper::createAction(pToolsMenu, "Screen &Capture (OpenSourceCapture)...", this,
+  QMenu* utilities = pToolsMenu->addMenu(tr("&Utilities (This PC)"));
+  utilities->addAction(tr("AI Agent Settings..."), this, [this] { showLocalUtilityDialog(this); });
+  utilities->addAction(tr("Administrator Password..."), this, [this] { configureLocalAdminPassword(this); });
+  captureAction = ActionHelper::createAction(utilities, "Screen &Capture (OpenSourceCapture)...", this,
                                              &lmcMainWindow::captureAction_triggered,
                                              QIcon(QPixmap(IDR_TOOLS, "PNG")),
                                              QKeySequence(Qt::Key_Print));

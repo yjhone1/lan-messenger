@@ -80,7 +80,7 @@ public:
   explicit RemoteViewerWindow(const QString& targetUserId, const QString& targetUserName, QWidget* parent = nullptr);
   ~RemoteViewerWindow();
 
-  void connectToHost(const QString& host, quint16 port);
+  void connectToHost(const QString& host, quint16 port, const QByteArray& token, const QByteArray& fingerprint);
 
 signals:
   void viewerClosed(const QString& targetUserId);

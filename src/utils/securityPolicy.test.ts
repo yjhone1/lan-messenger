@@ -1,13 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REMOTE_DESKTOP_PASSWORD,
-  UTILITY_ADMIN_PASSWORD,
-  validateRemoteDesktopPassword,
   validateRemoteDesktopRequest,
   evaluateCaptureUsage,
   evaluateUserCaptureUsage,
-  validateUtilityPassword,
   isAiAgentProcessAllowed,
   validateAiAgentProcess,
 } from './securityPolicy';
@@ -18,17 +14,9 @@ import {
   User,
 } from '../types/lmc';
 
-test('validateRemoteDesktopPassword strictly validates 192.168.10.212 regardless of client IP', () => {
-  assert.equal(validateRemoteDesktopPassword('192.168.10.212'), true);
-  assert.equal(validateRemoteDesktopPassword(' 192.168.10.212 '), true);
-  assert.equal(validateRemoteDesktopPassword('wrongpassword'), false);
-  assert.equal(validateRemoteDesktopPassword('admin'), false);
-  assert.equal(validateRemoteDesktopPassword(''), false);
-});
-
-test('validateRemoteDesktopRequest allows access when password is verified regardless of IP', () => {
+test('preview consent requires explicit approval, never a fixed password', () => {
   // Verified password
-  const verified = validateRemoteDesktopRequest('192.168.10.212', 'Minho Park (Win7)');
+  const verified = validateRemoteDesktopRequest(true, 'Minho Park (Win7)');
   assert.equal(verified.allowed, true);
   assert.equal(verified.requiresPassword, false);
   assert.match(verified.message, /원격 제어 세션 인증이 완료되었습니다/);
@@ -52,13 +40,6 @@ test('evaluateCaptureUsage confirms Screen Capture is unconditionally active upo
   const userUsage = evaluateUserCaptureUsage();
   assert.equal(userUsage.canUse, true);
   assert.equal(userUsage.userSpecific, false);
-});
-
-test('validateUtilityPassword unlocks Utility Tab with password 192.168.10.212', () => {
-  assert.equal(validateUtilityPassword(UTILITY_ADMIN_PASSWORD), true);
-  assert.equal(validateUtilityPassword('192.168.10.212'), true);
-  assert.equal(validateUtilityPassword('wrong'), false);
-  assert.equal(validateUtilityPassword(''), false);
 });
 
 test('REPRESENTATIVE_AI_AGENTS contains the 11 representative autonomous agents including opencode', () => {
@@ -122,4 +103,12 @@ test('isAiAgentProcessAllowed and validateAiAgentProcess enforce process-level b
   const operatorCheck = validateAiAgentProcess(sampleUser as User, 'openaiOperator');
   assert.equal(operatorCheck.allowed, true);
   assert.match(operatorCheck.message, /실행 허용/);
+});
+
+test('new installs and missing agent policies default to allow', () => {
+  for(const agent of REPRESENTATIVE_AI_AGENTS) {
+    assert.equal(DEFAULT_AI_AGENT_BLOCKS[agent.key], true);
+    assert.equal(isAiAgentProcessAllowed(undefined, agent.key), true);
+  }
+  assert.equal(validateRemoteDesktopRequest('192.168.10.212').allowed, false);
 });

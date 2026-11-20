@@ -42,3 +42,13 @@ set_target_properties(tst_security PROPERTIES
 
 add_test(NAME security COMMAND tst_security)
 set_tests_properties(security PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(tst_remote unit/tst_remote.cpp)
+target_link_libraries(tst_remote PRIVATE lmc_core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME remote COMMAND tst_remote)
+set_tests_properties(remote PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 45)
+
+add_executable(tst_adminauth unit/tst_adminauth.cpp)
+target_link_libraries(tst_adminauth PRIVATE lmc_core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME adminauth COMMAND tst_adminauth)
+set_tests_properties(adminauth PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)

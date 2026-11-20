@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QMimeData>
 #include "chatwindow.h"
+#include <QMessageBox>
 #include "gui/widgets/actionhelper.h"
 #include "capture/capturewindow.h"
 
@@ -486,7 +487,9 @@ void lmcChatWindow::btnProtocolMode_clicked(void) {
   pSettings->setValue(IDS_LEGACYCOMPAT, legacyCompatMode, IDS_LEGACYCOMPAT_VAL);
   pSettings->setValue(IDS_PROTOCOLMODE, modeStr, IDS_PROTOCOLMODE_VAL);
   pSettings->sync();
+  emit protocolModeChanged();
   updateProtocolModeUI();
+  QMessageBox::information(this, tr("Protocol Mode"), tr("This preference applies to new sessions. Restart both peers to use the selected mode. Existing sessions keep their original protection."));
 }
 
 void lmcChatWindow::updateProtocolModeUI(void) {
@@ -497,7 +500,7 @@ void lmcChatWindow::updateProtocolModeUI(void) {
   pProtocolModeAction->setToolTip(
       legacyCompatMode
           ? tr("Protocol Header Mode: Legacy v1.0 (PKCS#1 BEGIN RSA PUBLIC KEY / PUBKEY / MESSAG - OpenSSL 1.0 compatible)")
-          : tr("Protocol Header Mode: Strict v3.0 (SPKI BEGIN PUBLIC KEY / PUBKv3 / MSGv30 - OpenSSL 3.0 only)"));
+          : tr("Protocol Header Mode: Strict v3.0 (RSA-OAEP-SHA256 / AES-256-GCM / replay protection; updated peers required)"));
 }
 
 void lmcChatWindow::btnSend_clicked(void) {

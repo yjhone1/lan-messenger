@@ -1,83 +1,85 @@
-# LAN Messenger v1.3.0 (Based on v1.2.39 — OpenSSL 3.0 ↔ 1.0 Compatibility & Remote Desktop)
+# LAN Messenger 1.4.0.4
 
-**LAN Messenger v1.3.0**은 사내/로컬 네트워크(LAN) 환경에서 별도의 서버 없이 동작하는 오픈소스 P2P 메신저 **LAN Messenger `v1.2.39`**를 기반으로 다음 두 가지 핵심 아키텍처와 최신 빌드 환경(**Qt 6.10.2 / GCC 15.2.0**) 호환성을 추가한 확장 버전입니다:
+서버 없이 LAN에서 동작하는 C++17 / Qt 5·6 메신저와 React 웹 시뮬레이터입니다.
 
-1. **OpenSSL 3.0 ↔ OpenSSL 1.0 구버전 양방향 호환성 아키텍처 (`Legacy v1.0` / `Strict v3.0`)**
-2. **원격 데스크톱 제어 및 실시간 화면 공유 기능 (`lmc/src/remote/`)**
+## 로컬 유틸리티
 
----
+**Tools → Utilities (This PC) → AI Agent Settings...**에서 이 PC의 정책만 설정합니다.
+체크 = 허용, 체크 해제 = 차단입니다. 최초 설치 시 모두 **허용**합니다.
+기존 사용자가 저장한 정책은 유지합니다. 원격 사용자 정보에는 유틸리티 설정이 없으며,
+이전 클라이언트의 `MT_UtilityPolicy` 메시지도 무시합니다. 정책 변경 명령을 다른 사용자에게 전송하지 않습니다. 관리자 인증 조회에서는 현재 상태만 읽기 전용으로 제공합니다.
 
-## 1. v1.3.0 주요 추가 및 변경 사항 (vs v1.2.39)
+차단은 메신저가 약 3초마다 일치하는 프로세스의 종료를 시도하는 방식입니다.
+Windows는 `TerminateProcess`, Linux는 `SIGTERM`을 사용합니다.
+설치 방지·실행 전 차단·방화벽 차단 기능은 아닙니다. macOS 프로세스 차단은 구현되어 있지 않습니다.
+메신저 종료 시 감시를 중단하고, 삭제 프로그램은 모든 항목을 허용으로 저장합니다.
+종료된 프로세스를 자동으로 다시 실행하지는 않습니다.
 
-### ① OpenSSL 3.0 ↔ OpenSSL 1.0 구버전 호환성 아키텍처 (`lmc/src/core/crypto.*`, `lmc/src/network/*`)
-- **문제 배경**: 최신 리눅스/윈도우(OpenSSL 3.x) 환경의 랜메신저가 구버전(`v1.2.39` 이하, OpenSSL 1.0.x) 클라이언트와 연결될 때, OpenSSL 3.0의 기본 X.509 SPKI 공개키 헤더(`-----BEGIN PUBLIC KEY-----`)를 구버전 클라이언트의 `PEM_read_bio_RSAPublicKey()`가 파싱하지 못해 `NULL` 역참조로 강제 종료(Crash)되던 문제를 해결했습니다.
-- **해결 및 동작 구조**:
-  - **`Legacy v1.0` 모드(기본값)**: OpenSSL 3.0 `EVP_PKEY` 및 `OSSL_ENCODER_CTX`를 사용하여 PKCS#1 `"type-specific"` 헤더(`-----BEGIN RSA PUBLIC KEY-----`)를 선두에 배치하고 `SHA-1` OAEP 패딩 및 표준 6바이트 프레임 헤더(`BRDCST`, `PUBKEY`, `HNDSHK`, `MESSAG`)를 사용하여 구버전(`v1.2.39` 등) 클라이언트와의 완벽한 상호운용성을 보장합니다.
-  - **`Strict v3.0` 모드**: X.509 SPKI 헤더(`-----BEGIN PUBLIC KEY-----`), `SHA-256` OAEP 패딩, `v3.0` 전용 프레임 헤더(`BRDv30`, `PUBKv3`, `HNDv30`, `MSGv30`)를 사용합니다.
-  - **듀얼 디코더 및 자동 폴백**: 상대방의 RSA-1024(128B 엔벨로프) 및 RSA-2048(256B 엔벨로프) 공개키를 `OSSL_DECODER_CTX`로 모두 수용하며, `retreiveAES()`에서 SHA-1 / SHA-256 OAEP 복호화를 자동 감지합니다.
-  - **채팅창 실시간 모드 토글**: 채팅창(`lmc/src/gui/chat/chatwindow.cpp`) 우측 상단 툴바에서 **`Legacy v1.0` ↔ `Strict v3.0`** 프로토콜 모드를 즉시 전환할 수 있습니다.
+명령과 실제 차단 확인 방법: [로컬 유틸리티 안내](docs/local-utilities.md).
 
-### ② 원격 데스크톱 제어 기능 추가 (`lmc/src/remote/`)
-- 채팅창 상단 툴바의 **`Remote Desktop...`** 버튼으로 상대방 피어에게 원격 화면 공유 및 제어를 요청(`MT_RemoteRequest` / `MT_RemoteAccept` / `MT_RemoteReject` / `MT_RemoteClose`)할 수 있습니다.
-- **구성 모듈**:
-  - `lmc/src/remote/remoteserver.h` / `remoteserver.cpp`: 로컬 화면 캡처, JPEG 프레임 스트리밍 및 원격 마우스/키보드 입력 이벤트 재현 서버
-  - `lmc/src/remote/remoteclient.h` / `remoteclient.cpp`: TCP 기반 원격 프레임 수신 및 입력 전송 클라이언트
-  - `lmc/src/remote/remoteviewerwindow.h` / `remoteviewerwindow.cpp`: 원격 화면 뷰어(`RemoteCanvasWidget`), **`Enable Control`(원격 마우스/키보드 제어 활성화)**, **`Fit to Window`(창 크기 자동 맞춤)**, **`Disconnect`** 제어 툴바 제공
+## 관리자 인증과 상태 조회
 
-### ③ 설정 마이그레이션 및 Qt 6.10.2 / GCC 15.2.0 호환성 업데이트
-- `lmc/src/core/settings.cpp`: `v1.3.0` 미만 버전(`Helper::compareVersions(version, "1.3.0") < 0`)의 레거시 고정 TCP 포트 설정을 자동 정리하고 버전 정보를 `1.3.0`으로 마이그레이션합니다.
-- `lmc/src/gui/chat/chatwindow.cpp` & `lmc/src/gui/main/mainwindow.cpp`: **Qt 6.10.2 (GCC 15.2.0, x86_64)** 환경에서 서로 다른 열거형 비트 연산 경고가 발생하지 않도록 `QKeyCombination(Qt::ControlModifier, ...)`을 적용했습니다.
+**Tools → Utilities (This PC) → Administrator Password...**에서 대상 PC의 관리자 비밀번호를 먼저 설정합니다.
+원격 제어 신청과 상대방의 **사용자 정보 → 관리자 상태 조회**에는 이 비밀번호가 필요합니다.
+잘못된 비밀번호나 인증값 없는 원격 요청은 상대방의 수락 창을 띄우지 않습니다.
+최근 차단 성공·실패, 연결 상태, 운영 오류를 `/trace` 없이도 최대 200개 기록하고 인증 후 읽기 전용으로 조회합니다.
+자세한 절차는 [관리자 안내](docs/administrator.md)를 참고하십시오.
 
----
+## 원격 화면과 암호화
 
-## 2. 로컬 PC 작업 환경 안내 (Ubuntu 26.04.1 LTS / Qt Creator 18.0.2)
+- 원격 요청은 관리자 비밀번호 인증을 먼저 통과해야 하며, 이후 대상 사용자의 명시적인 승인이 필요합니다. 공통 고정 비밀번호를 사용하지 않습니다.
+- TLS 1.2 이상, SHA-256 인증서 지문 고정, 별도 경로로 전달하는 코드에서 파생한 32바이트 일회용 토큰으로 원격 연결을 보호합니다.
+- 호스트의 공유 창에 표시되는 32자리 코드를 전화 등 별도의 신뢰할 수 있는 경로로 뷰어에게 전달하고 입력합니다.
+  공유 창을 닫으면 공유를 종료합니다. 인증 전에는 화면이나 입력을 허용하지 않습니다.
+- 승인 후 30초 안에 연결해야 합니다. 미인증 TCP 연결의 인증 제한 시간은 5초입니다.
+- 패킷에는 16 MiB 상한이 있습니다. 구버전의 암호화되지 않은 원격 연결로 폴백하지 않습니다.
+- **Legacy v1.0**: 구버전 호환 RSA-OAEP-SHA1 / AES-CBC. 메시지 인증은 제공하지 않습니다.
+- **Strict v3.0**: RSA-OAEP-SHA256 / AES-256-GCM, 방향별 키와 인증된 순서 번호를 사용합니다.
+  변조·재전송·반사 메시지를 거부하며 레거시 키 교환으로 다운그레이드하지 않습니다.
+  이전 Strict 구현과 호환되지 않으므로 양쪽 앱을 함께 업데이트해야 합니다.
+- 프로토콜 선택은 새 세션에 적용됩니다. 양쪽 앱을 재시작하십시오. 기존 세션의 보호 방식은 유지됩니다.
+- 채팅의 RSA 공개키 교환에는 영구 신원 인증이 없습니다. 메시지 무결성과 피어 신원 인증은 구별해야 합니다.
+  원격 화면의 확인 코드를 채팅 채널 자체로 교환하면 별도 경로 확인의 보호 효과가 없어집니다.
 
-- **운영체제**: Ubuntu 26.04.1 LTS (`x86_64`)
-- **IDE**: Qt Creator 18.0.2
-- **Qt 버전**: Qt 6.10.2 (`GCC 15.2.0`, `x86_64`)
+원격 입력 재현은 Linux X11 중심입니다. Windows·macOS·Wayland에서 동일한 입력 제어를 보장하지 않습니다.
 
-### 필수 패키지 설치 (Ubuntu 26.04.1 LTS 터미널)
+## 소스 구조
 
-```bash
-sudo apt update
-sudo apt install -y build-essential cmake ninja-build pkg-config \
-  qt6-base-dev qt6-base-private-dev qt6-multimedia-dev qt6-tools-dev \
-  qt6-tools-dev-tools qt6-l10n-tools qt6-translations-l10n libssl-dev
+| 폴더 | 역할 |
+|---|---|
+| `lmc/src/capture/` | 네이티브 캡처 창·정의 |
+| `src/capture/` | 웹 캡처 UI·엔진·타입·테스트 |
+| `lmc/src/remote/` | 원격 화면 TLS·서버·클라이언트·뷰어 |
+| `lmc/src/security/` | 로컬 유틸리티 설정·프로세스 감시 |
+| `lmc/src/core/`, `network/`, `messaging/` | 암호화·통신·메시징 |
+| `tests/` | Qt 보안·암호화·원격 통합 테스트 및 Robot 테스트 |
+
+## 빌드 및 테스트
+
+Qt Core, Gui, Widgets, Network, Xml, Test와 OpenSSL 개발 패키지가 필요합니다.
+Linux에는 Qt Multimedia도 필요합니다. [플랫폼별 빌드 안내](docs/build.md)도 참고하십시오.
+
+```sh
+cmake -S . -B build -G Ninja -DLMC_BUILD_TESTS=ON
+cmake --build build -j4
+ctest --test-dir build --output-on-failure
 ```
 
-### Qt Creator 18.0.2에서 열기 및 빌드
+Windows 실행 파일은 `build/lmc/lmc.exe`, Linux는 `build/lmc/lan-messenger`입니다.
 
-1. 저장소를 로컬 PC로 `git pull` 받습니다. (`/.qtcreator/CMakeLists.txt.user`가 보존되어 있어 마이그레이션 없이 즉시 열립니다.)
-2. **Qt Creator 18.0.2**에서 최상단 **`CMakeLists.txt`**를 열고 **`Desktop Qt 6.10.2 (GCC 15.2.0, x86_64)`** Kit으로 **`Build` (`Ctrl + B`)** 또는 **`Run` (`Ctrl + R`)**을 실행합니다.
+웹 프리뷰:
 
-### 터미널(CLI)에서 CMake 빌드 및 유닛 테스트(`tst_crypto`) 실행
-
-```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLMC_BUILD_TESTS=ON
-cmake --build build -j$(nproc)
-
-# 실행 (버전 1.3.0)
-./build/lmc/lan-messenger
-
-# OpenSSL 3.0 <-> 1.0 암호화/호환성 유닛 테스트(11개 항목) 실행
-ctest --test-dir build --output-on-failure -V
-```
-
----
-
-## 3. GitHub Actions 윈도우 배포판 자동 빌드 (`.github/workflows/windows-release.yml`)
-
-- GitHub의 `master` 또는 `main` 브랜치에 Push하면 **Windows Release Build** 워크플로우가 자동 실행되어 **`v1.3.0`** 릴리스 태그와 함께 **`lan-messenger-windows-x64.zip`** 배포판을 생성 및 업로드합니다.
-
----
-
-## 4. 웹 프리뷰 및 프로토콜 시뮬레이터 실행 (Node.js)
-
-```bash
-npm install
+```sh
+npm ci
 npm run dev
+npm run build
+npm test
 ```
+
+**웹의 암호화·원격 화면·AI 에이전트 정책은 시뮬레이션입니다.**
+실제 OpenSSL 호환성이나 OS 프로세스 차단의 검증 결과를 의미하지 않습니다.
+실제 암호화와 TLS 동작은 Qt 테스트로 검증합니다.
 
 ## 라이선스
 
-GNU General Public License v3.0 (`LICENSE` 참조).
+GPL-3.0-or-later. [LICENSE](LICENSE) 참조.

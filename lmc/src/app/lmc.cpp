@@ -23,6 +23,13 @@
 
 
 #include <QInputDialog>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include "security/adminaudit.h"
+#include <QCryptographicHash>
+#include <QDialogButtonBox>
+#include <QVBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QSet>
@@ -334,6 +341,10 @@ void lmcCore::sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMe
   case MT_File:
   case MT_Avatar:
   case MT_Folder:
+  case MT_AdminChallenge:
+  case MT_AdminChallengeReply:
+  case MT_AdminDiagnostics:
+  case MT_AdminDiagnosticsReply:
   case MT_RemoteRequest:
   case MT_RemoteAccept:
   case MT_RemoteReject:
@@ -394,7 +405,27 @@ bool lmcCore::receiveAppMessage(const QString& szMessage) {
     bool autoStart = pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_VAL).toBool();
     lmcSettings::setAutoStart(autoStart);
   }
+  if(messageList.contains("/agents-allow-all", Qt::CaseInsensitive)) {
+    AiAgentBlocker::instance()->setAllAllowed(true);
+  }
+  for(const QString& arg : messageList) {
+    const QString prefix = QStringLiteral("/agent-policy=");
+    if(!arg.startsWith(prefix, Qt::CaseInsensitive))
+      continue;
+    const QStringList parts = arg.mid(prefix.size()).split(QLatin1Char('='));
+    if(parts.size() == 2 && (parts[1] == "allow" || parts[1] == "block"))
+      AiAgentBlocker::instance()->setAgentAllowed(parts[0], parts[1] == "allow");
+  }
+  if(messageList.contains("/agent-status", Qt::CaseInsensitive)) {
+    QStringList status;
+    const auto policy = AiAgentBlocker::instance()->policy();
+    for(auto it = policy.constBegin(); it != policy.constEnd(); ++it)
+      status << it.key() + "=" + (it.value() ? "allow" : "block");
+    QMessageBox::information(pMainWindow, tr("Local AI Agent Policy"), status.join("\n"));
+  }
   if(messageList.contains("/unsync", Qt::CaseInsensitive)) {
+    AiAgentBlocker::instance()->setAllAllowed(true);
+    AiAgentBlocker::instance()->stop();
     lmcSettings::setAutoStart(false);
   }
   if(messageList.contains("/term", Qt::CaseInsensitive)) {
@@ -410,6 +441,7 @@ bool lmcCore::receiveAppMessage(const QString& szMessage) {
 
 void lmcCore::connectionStateChanged(void) {
   bool connected = pMessaging->isConnected();
+  AdminAudit::record("network", "state", connected ? "Connected" : "Disconnected");
 
   pMainWindow->connectionStateChanged(connected);
   if(pPublicChatWindow)
@@ -623,6 +655,12 @@ void lmcCore::processMessage(MessageType type, QString* lpszUserId, XmlMessage* 
   case MT_WebFailed:
     pUpdateWindow->receiveMessage(type, lpszUserId, pMessage);
     break;
+  case MT_AdminChallenge:
+  case MT_AdminChallengeReply:
+  case MT_AdminDiagnostics:
+  case MT_AdminDiagnosticsReply:
+    processAdminMessage(type, lpszUserId, pMessage);
+    break;
   case MT_RemoteRequest:
   case MT_RemoteAccept:
   case MT_RemoteReject:
@@ -630,7 +668,7 @@ void lmcCore::processMessage(MessageType type, QString* lpszUserId, XmlMessage* 
     processRemoteMessage(type, lpszUserId, pMessage);
     break;
   case MT_UtilityPolicy:
-    processUtilityPolicy(lpszUserId, pMessage);
+    lmcTrace::write("Ignored remote utility policy: local settings only");
     break;
   default:
     break;
@@ -852,10 +890,10 @@ void lmcCore::showUserInfo(XmlMessage* pMessage) {
     pUserInfoWindow->init();
   }
 
+  connect(pUserInfoWindow, &lmcUserInfoWindow::adminDiagnosticsRequested,
+          this, &lmcCore::requestAdminDiagnostics, Qt::UniqueConnection);
   connect(pUserInfoWindow, &lmcUserInfoWindow::remoteDesktopRequested,
           this, &lmcCore::startRemoteDesktop, Qt::UniqueConnection);
-  connect(pUserInfoWindow, &lmcUserInfoWindow::utilityPolicyChanged,
-          this, &lmcCore::sendUtilityPolicy, Qt::UniqueConnection);
 
   const QString localId = pMessaging->localUser ? pMessaging->localUser->id : QString();
   pUserInfoWindow->setInfo(pMessage, localId);
@@ -879,6 +917,7 @@ void lmcCore::createChatWindow(QString* lpszUserId) {
   connect(pChatWindow, &lmcChatWindow::showHistory, this, &lmcCore::showHistory);
   connect(pChatWindow, &lmcChatWindow::showTransfers, this, &lmcCore::showTransfers);
   connect(pChatWindow, &lmcChatWindow::remoteStarting, this, &lmcCore::startRemoteDesktop);
+  connect(pChatWindow, &lmcChatWindow::protocolModeChanged, this, &lmcCore::settingsChanged);
   connect(pChatWindow, &lmcChatWindow::closed, this, &lmcCore::chatWindow_closed);
   pChatWindow->init(pLocalUser, pRemoteUser, pMessaging->isConnected());
 }
@@ -1004,71 +1043,11 @@ void lmcCore::showPortConflictMessage(void) {
   msgBox.exec();
 }
 
-void lmcCore::startRemoteDesktop(QString* lpszUserId) {
-  if(!lpszUserId || lpszUserId->isEmpty())
-    return;
-
-  bool ok = false;
-  const QString pass = QInputDialog::getText(
-      pMainWindow,
-      tr("Remote Desktop Authentication"),
-      tr("Enter security password to start Remote Desktop:"),
-      QLineEdit::Password,
-      QString(),
-      &ok);
-  if(!ok)
-    return;
-  if(!AiAgentBlocker::verifyAdminPassword(pass)) {
-    QMessageBox::warning(
-        pMainWindow,
-        tr("Authentication Failed"),
-        tr("Incorrect password."));
-    return;
-  }
-
-  XmlMessage reqMessage;
-  reqMessage.addData(XN_MESSAGE, tr("Requesting Remote Desktop connection..."));
-  reqMessage.addData(XN_UTILITYPASS, QString::fromLatin1(AiAgentBlocker::kAdminPassword));
-  sendMessage(MT_RemoteRequest, lpszUserId, &reqMessage);
-
-  User* pUser = pMessaging->getUser(lpszUserId);
-  QString peerName = pUser ? pUser->name : *lpszUserId;
-  showTrayMessage(TM_Connection, tr("Sent Remote Desktop request to %1").arg(peerName));
+void lmcCore::startRemoteDesktop(QString* id) {
+  if(id && !id->isEmpty()) beginAdminAction(*id, "remote");
 }
-
-void lmcCore::sendUtilityPolicy(const QString& targetUserId,
-                                const QString& serializedPolicy,
-                                const QString& password) {
-  if(targetUserId.isEmpty() || !AiAgentBlocker::verifyAdminPassword(password))
-    return;
-
-  QString userId = targetUserId;
-  XmlMessage policyMsg;
-  policyMsg.addData(XN_AIAGENTPOLICY, serializedPolicy);
-  policyMsg.addData(XN_UTILITYPASS, password);
-  sendMessage(MT_UtilityPolicy, &userId, &policyMsg);
-
-  User* pUser = pMessaging->getUser(&userId);
-  QString peerName = pUser ? pUser->name : targetUserId;
-  showTrayMessage(TM_Connection, tr("Updated AI Agent process policy for %1").arg(peerName));
-}
-
-void lmcCore::processUtilityPolicy(QString* lpszUserId, XmlMessage* pMessage) {
-  if(!pMessage)
-    return;
-  if(!AiAgentBlocker::verifyAdminPassword(pMessage->data(XN_UTILITYPASS))) {
-    lmcTrace::write(QStringLiteral("Rejected unauthorized MT_UtilityPolicy update"));
-    return;
-  }
-
-  AiAgentBlocker::instance()->applySerializedPolicy(pMessage->data(XN_AIAGENTPOLICY));
-
-  User* pUser = lpszUserId ? pMessaging->getUser(lpszUserId) : nullptr;
-  QString peerName = pUser ? pUser->name : (lpszUserId ? *lpszUserId : tr("Administrator"));
-  showTrayMessage(TM_Connection,
-                  tr("AI Agent process blocking policy updated by %1.").arg(peerName),
-                  QString(),
-                  TMI_Info);
+void lmcCore::requestAdminDiagnostics(QString* id) {
+  if(id && !id->isEmpty()) beginAdminAction(*id, "diagnostics");
 }
 
 void lmcCore::onAgentProcessBlocked(const QString& agentKey,
@@ -1093,12 +1072,15 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
 
   switch(type) {
   case MT_RemoteRequest: {
-    if(!pMessage || !AiAgentBlocker::verifyAdminPassword(pMessage->data(XN_UTILITYPASS))) {
-      XmlMessage rejectMsg;
-      sendMessage(MT_RemoteReject, lpszUserId, &rejectMsg);
+    if(!pUser || !pMessage || !remoteHostPeer.isEmpty()) break;
+    if(!m_adminAuth.authorize(*lpszUserId, pMessaging->localUser->id, "remote",
+        pMessage->data("adminnonce"), QByteArray::fromHex(pMessage->data("adminproof").toLatin1()))) {
+      AdminAudit::record("admin", "denied", "Unauthenticated remote request rejected");
+      XmlMessage denied;
+      sendMessage(MT_RemoteReject, lpszUserId, &denied);
       break;
     }
-
+    AdminAudit::record("admin", "authorized", "Authenticated remote request awaiting local consent");
     QMessageBox::StandardButton reply = QMessageBox::question(
         pMainWindow,
         tr("Remote Desktop Request"),
@@ -1109,11 +1091,33 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
     if(reply == QMessageBox::Yes) {
       if(!pRemoteServer) {
         pRemoteServer = new RemoteServer(this);
+        connect(pRemoteServer, &RemoteServer::serverStopped, this, [this] { remoteHostPeer.clear(); });
       }
       if(pRemoteServer->startServer(0)) {
+        remoteHostPeer = *lpszUserId;
+        auto* sharing = new QDialog(pMainWindow);
+        sharing->setAttribute(Qt::WA_DeleteOnClose);
+        sharing->setWindowTitle(tr("Remote Desktop - Stop Sharing"));
+        auto* sharingLayout = new QVBoxLayout(sharing);
+        auto* verification = new QLabel(tr("Give this code to the viewer through a separate trusted channel:\n%1\nClose this window to stop sharing.")
+            .arg(QString::fromLatin1(pRemoteServer->verificationCode())), sharing);
+        verification->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        sharingLayout->addWidget(verification);
+        auto* stopButton = new QDialogButtonBox(QDialogButtonBox::Close, sharing);
+        sharingLayout->addWidget(stopButton);
+        connect(stopButton, &QDialogButtonBox::rejected, sharing, &QDialog::close);
+        connect(sharing, &QDialog::finished, pRemoteServer, &RemoteServer::stopServer);
+        connect(pRemoteServer, &RemoteServer::serverStopped, sharing, &QDialog::close);
+        sharing->show();
+        const QByteArray approvedFingerprint = pRemoteServer->fingerprint();
+        QTimer::singleShot(30000, pRemoteServer, [this, approvedFingerprint] {
+          if(pRemoteServer && pRemoteServer->fingerprint() == approvedFingerprint && !pRemoteServer->isClientConnected()) pRemoteServer->stopServer();
+        });
         quint16 port = pRemoteServer->serverPort();
         XmlMessage acceptMsg;
         acceptMsg.addData(XN_REMOTETCPPORT, QString::number(port));
+        acceptMsg.addData("remotesecure", "2"); // Access secret is exchanged out of band, never over chat.
+        acceptMsg.addData("remotefingerprint", QString::fromLatin1(pRemoteServer->fingerprint()));
         sendMessage(MT_RemoteAccept, lpszUserId, &acceptMsg);
         showTrayMessage(TM_Connection, tr("Remote Desktop started on port %1").arg(port));
       } else {
@@ -1128,6 +1132,12 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
   }
 
   case MT_RemoteAccept: {
+    if(!pMessage || !pendingRemoteRequests.remove(*lpszUserId)) break;
+    const QByteArray fingerprint = pMessage->data("remotefingerprint").toLatin1();
+    if(pMessage->data("remotesecure") != "2" || fingerprint.size() != 64) {
+      QMessageBox::warning(pMainWindow, tr("Remote Desktop"), tr("Peer does not support secure remote sessions. Update both clients."));
+      break;
+    }
     quint16 port = pMessage->data(XN_REMOTETCPPORT).toUShort();
     QString peerIp = pUser ? pUser->address : QString();
 
@@ -1141,17 +1151,30 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
       return;
     }
 
+    bool codeOk = false;
+    const QString code = QInputDialog::getText(pMainWindow, tr("Verify Remote Host"),
+        tr("Ask the host for the 32-character code displayed on their sharing window using a separate trusted channel."),
+        QLineEdit::Normal, QString(), &codeOk);
+    const QByteArray verifiedCode = code.trimmed().toLatin1().toLower();
+    if(!codeOk || verifiedCode.size() != 32 || verifiedCode.left(16) != fingerprint.left(16).toLower() ||
+       QByteArray::fromHex(verifiedCode).size() != 16) {
+      XmlMessage closeMsg;
+      sendMessage(MT_RemoteClose, lpszUserId, &closeMsg);
+      break;
+    }
+    const QByteArray token = QCryptographicHash::hash(verifiedCode.mid(16) + fingerprint, QCryptographicHash::Sha256);
     RemoteViewerWindow* viewer = new RemoteViewerWindow(*lpszUserId, peerName);
     connect(viewer, &RemoteViewerWindow::viewerClosed, this, &lmcCore::onViewerClosed);
     remoteViewerWindows.insert(*lpszUserId, viewer);
     viewer->show();
-    viewer->connectToHost(peerIp, port);
+    viewer->connectToHost(peerIp, port, token, fingerprint);
     break;
   }
 
   case MT_RemoteReject: {
+    if(!pendingRemoteRequests.remove(*lpszUserId)) break;
     QMessageBox::information(pMainWindow, tr("Remote Desktop"),
-                             tr("%1 rejected your Remote Desktop request.").arg(peerName));
+                             tr("Administrator authentication failed or %1 rejected your Remote Desktop request.").arg(peerName));
     break;
   }
 
@@ -1159,7 +1182,7 @@ void lmcCore::processRemoteMessage(MessageType type, QString* lpszUserId, XmlMes
     if(remoteViewerWindows.contains(*lpszUserId) && remoteViewerWindows.value(*lpszUserId)) {
       remoteViewerWindows.value(*lpszUserId)->close();
     }
-    if(pRemoteServer) {
+    if(pRemoteServer && remoteHostPeer == *lpszUserId) {
       pRemoteServer->stopServer();
     }
     break;

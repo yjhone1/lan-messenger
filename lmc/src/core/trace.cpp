@@ -23,6 +23,7 @@
 
 
 #include "trace.h"
+#include "security/adminaudit.h"
 
 bool lmcTrace::traceMode;
 QString lmcTrace::m_fileName;
@@ -47,6 +48,7 @@ QString lmcTrace::fileName() {
 }
 
 void lmcTrace::write(const QString& string, bool verbose) {
+  if(verbose) AdminAudit::traceEvent(string);
   if(!traceMode || !verbose)
     return;
 
