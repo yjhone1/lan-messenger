@@ -13,7 +13,7 @@ import {
   PresetSize,
   RECOMMENDED_CAPTURE_SHORTCUTS,
   validateCaptureShortcut,
-} from '../types/kalmuri';
+} from './types';
 import {
   buildColorInfo,
   captureDomRegion,
@@ -22,7 +22,7 @@ import {
   generateFileName,
   playShutterSound,
   triggerFileDownload,
-} from '../services/kalmuriEngine';
+} from './kalmuriEngine';
 
 interface KalmuriCaptureProps {
   isOpen: boolean;

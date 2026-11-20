@@ -39,7 +39,7 @@ EVP_PKEY* loadPrivateKey(const QByteArray& pem) {
   return key;
 }
 
-QByteArray stockDecryptOaepSha1(EVP_PKEY* key, const QByteArray& blob) {
+QByteArray stockDecryptOaepSha1(EVP_PKEY* key, const QByteArray& blob, const EVP_MD* digest = EVP_sha1()) {
   QByteArray result;
   EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
   if(!ctx)
@@ -49,8 +49,8 @@ QByteArray stockDecryptOaepSha1(EVP_PKEY* key, const QByteArray& blob) {
   size_t outLen = 0;
   bool ok = EVP_PKEY_decrypt_init(ctx) > 0 &&
             EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) > 0 &&
-            EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha1()) > 0 &&
-            EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha1()) > 0 &&
+            EVP_PKEY_CTX_set_rsa_oaep_md(ctx, digest) > 0 &&
+            EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, digest) > 0 &&
             EVP_PKEY_decrypt(ctx, nullptr, &outLen, in, size_t(blob.size())) > 0;
   if(ok) {
     result.resize(int(outLen));
@@ -117,6 +117,9 @@ class TstCrypto : public QObject {
   Q_OBJECT
 
 private slots:
+  void strictRejectsTamperingReplayAndReflection();
+  void strictRejectsLegacyHandshake();
+  void strictUsesOaepSha256Oracle();
   void publicKeyIsPkcs1(void);
   void handshakeBothDirections(void);
   void payloadMatrix_data(void);
@@ -305,6 +308,51 @@ void TstCrypto::legacyVsStrictProtocolModeToggle(void) {
   // Switch back to Legacy v1.0
   server.setLegacyCompatibility(true);
   QVERIFY(server.getPublicKeyForMode().startsWith("-----BEGIN RSA PUBLIC KEY-----"));
+}
+
+void TstCrypto::strictRejectsTamperingReplayAndReflection() {
+  PeerPair pair;
+  pair.server.setLegacyCompatibility(false);
+  pair.client.setLegacyCompatibility(false);
+  QVERIFY(pair.shakeHands());
+  const QByteArray plain(2048, 'a');
+  const QByteArray original = encryptFor(pair.client, pair.serverId, plain);
+  for(int offset : {0, 7, 15, 27, int(original.size() - 1)}) {
+    QByteArray changed = original;
+    changed[offset] = char(changed[offset] ^ 1);
+    QVERIFY(decryptFrom(pair.server, pair.clientId, changed).isEmpty());
+  }
+  QVERIFY(decryptFrom(pair.client, pair.serverId, original).isEmpty());
+  QCOMPARE(decryptFrom(pair.server, pair.clientId, original), plain);
+  QVERIFY(decryptFrom(pair.server, pair.clientId, original).isEmpty());
+  QCOMPARE(pair.clientToServer("next"), QByteArray("next"));
+  QCOMPARE(pair.serverToClient("response"), QByteArray("response"));
+  // A UI preference change must not silently downgrade an established strict session.
+  pair.client.setLegacyCompatibility(true);
+  pair.server.setLegacyCompatibility(true);
+  QCOMPARE(pair.clientToServer("still authenticated"), QByteArray("still authenticated"));
+}
+
+void TstCrypto::strictRejectsLegacyHandshake() {
+  lmcCrypto server, client;
+  server.setLegacyCompatibility(false);
+  QByteArray pub = server.generateRSA();
+  QString id("peer");
+  QByteArray legacy = client.generateAES(&id, pub);
+  server.retreiveAES(&id, legacy);
+  QVERIFY(!server.hasSession(&id));
+}
+
+void TstCrypto::strictUsesOaepSha256Oracle() {
+  lmcCrypto client;
+  client.setLegacyCompatibility(false);
+  QByteArray pub = readFixture("test-rsa2048-pub-pkcs1.pem");
+  const QByteArray session = wrapSession(client, "strict-peer", pub);
+  EVP_PKEY* key = loadPrivateKey(readFixture("test-rsa2048-priv.pem"));
+  QVERIFY(key);
+  QCOMPARE(stockDecryptOaepSha1(key, session, EVP_sha256()).size(), kSessionKeyIvSize);
+  QVERIFY(stockDecryptOaepSha1(key, session).isEmpty());
+  EVP_PKEY_free(key);
 }
 
 QTEST_MAIN(TstCrypto)

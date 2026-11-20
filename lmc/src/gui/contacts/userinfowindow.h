@@ -28,6 +28,9 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QMap>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QJsonObject>
 #include "ui_userinfowindow.h"
 #include "core/shared.h"
 #include "core/settings.h"
@@ -45,44 +48,33 @@ public:
   void init(void);
   void setInfo(XmlMessage* pMessage, const QString& localUserId = QString());
   void settingsChanged(void);
+  void showAdminDiagnostics(const QString& target, const QJsonObject& snapshot);
+  void adminDiagnosticsStatus(const QString& target, const QString& text);
 
 signals:
   void remoteDesktopRequested(QString* lpszUserId);
-  void utilityPolicyChanged(const QString& targetUserId,
-                            const QString& serializedPolicy,
-                            const QString& password);
+  void adminDiagnosticsRequested(QString* lpszUserId);
 
 public slots:
-  void toggleCapturePolicy(void);
   void requestRemoteDesktop(void);
 
 private slots:
   void onScreenCaptureClicked(void);
-  void onUnlockUtilityClicked(void);
-  void onAgentCheckboxToggled(bool checked);
-  void onAllowAllAgentsClicked(void);
-  void onBlockAllAgentsClicked(void);
 
 protected:
   void changeEvent(QEvent* pEvent);
 
 private:
   void setUIText(void);
-  void buildUtilityAgentRows(void);
-  void refreshUtilityControls(void);
-  void updateLockUiState(void);
-  void emitUtilityPolicyUpdate(void);
 
   Ui::UserInfoWindow ui;
   lmcSettings* pSettings;
   XmlMessage userInfo;
-  QWidget* m_tabUtility;
-  bool m_utilityTabAttached;
-  bool m_utilityUnlocked;
   bool m_isLocalUser;
   QString m_targetUserId;
-  QMap<QString, bool> m_peerPolicy;
-  QMap<QString, QCheckBox*> m_agentChecks;
+  QPlainTextEdit* m_adminDetails = nullptr;
+  QPushButton* m_adminRefresh = nullptr;
+  quint64 m_diagnosticsGeneration = 0;
 };
 
 #endif // USERINFOWINDOW_H

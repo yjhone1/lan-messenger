@@ -134,6 +134,10 @@ enum MessageType {
   MT_RemoteReject,
   MT_RemoteClose,
   MT_UtilityPolicy,
+  MT_AdminChallenge,
+  MT_AdminChallengeReply,
+  MT_AdminDiagnostics,
+  MT_AdminDiagnosticsReply,
   //	These are used only for local communication between layers
   MT_Group,
   MT_Version,
@@ -172,6 +176,10 @@ const QString MessageTypeNames[] = {
   "remotereject",
   "remoteclose",
   "utilitypolicy",
+  "adminchallenge",
+  "adminchallengereply",
+  "admindiagnostics",
+  "admindiagnosticsreply",
   //	These are used only for local communication between layers
   "group",
   "version",

@@ -44,12 +44,10 @@ class AiAgentBlocker : public QObject {
   Q_OBJECT
 
 public:
-  static constexpr const char* kAdminPassword = "192.168.10.212";
 
   static AiAgentBlocker* instance();
 
   static const QList<AiAgentSpec>& specs();
-  static bool verifyAdminPassword(const QString& password);
   static QMap<QString, bool> defaultPolicy();
   static QString serializePolicy(const QMap<QString, bool>& policyMap);
   static QMap<QString, bool> deserializePolicy(const QString& serialized);
@@ -71,11 +69,13 @@ public:
 
   void start(int intervalMs = 3000);
   void stop();
+  bool monitoring() const { return m_scanTimer->isActive(); }
 
 public slots:
   int enforceNow();
 
 signals:
+  void agentProcessBlockFailed(const QString& processName, qint64 pid, const QString& reason);
   void policyChanged(const QMap<QString, bool>& policyMap);
   void agentProcessBlocked(const QString& agentKey,
                            const QString& agentName,

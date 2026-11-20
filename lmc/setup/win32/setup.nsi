@@ -308,7 +308,7 @@ Section
   StrCpy $ConfigFile "/config=$\"$R1$\""
 
   ;Sync startup settings silently
-  ExecWait "$INSTDIR\${AppExec} $ConfigFile /silent /sync /quit"
+  ExecWait '"$INSTDIR\${AppExec}" $ConfigFile /silent /sync /quit'
 
   ;Write the uninstall keys for Windows
   WriteRegStr HKLM "${UninstKey}" "DisplayName" "${ProductName}"
@@ -377,7 +377,7 @@ Section "Uninstall"
   DeleteRegKey /ifempty HKLM "${CompanyRegKey}"
 
   DetailPrint "Removing files and folders"
-  ExecWait "$INSTDIR\${AppExec} $DeleteHistory $DeleteSettings /silent /unsync /quit"
+  ExecWait '"$INSTDIR\${AppExec}" $DeleteHistory $DeleteSettings /agents-allow-all /silent /unsync /quit'
 
   RMDir "$DOCUMENTS\Received Files"
 
@@ -573,12 +573,11 @@ SectionEnd
 
   Function un.onInit
     StrCpy $BrandText "${ProductName} v${ProductVersion} Uninstaller"
-    IfSilent +1 +2
-      Call un.IsAppRunning
+    Call un.IsAppRunning
   FunctionEnd
 
   Function un.IsAppRunning
-    ExecWait "$INSTDIR\${AppExec} /inst" $0
+    ExecWait '"$INSTDIR\${AppExec}" /inst' $0
     IntCmp $0 0 NotRunning
 
     MessageBox MB_OKCANCEL|MB_ICONQUESTION \
@@ -589,7 +588,7 @@ SectionEnd
     Quit
 
     CloseApp:
-    ExecWait "$INSTDIR\${AppExec} /silent /term"
+    ExecWait '"$INSTDIR\${AppExec}" /agents-allow-all /silent /term'
 
     NotRunning:
   FunctionEnd

@@ -1,0 +1,97 @@
+# 로컬 유틸리티 설정과 확인 방법
+
+## 설정
+
+**Tools → Utilities (This PC) → AI Agent Settings...**에서 현재 PC만 설정합니다.
+체크 = 허용, 체크 해제 = 차단입니다. 처음 설치 시 11개 항목을 모두 허용합니다.
+현재 로그인 사용자의 설정 파일 `Security/AiAgents` 그룹에 저장합니다.
+상대방 PC의 설정을 변경하거나 정책을 전송하는 기능은 없습니다.
+
+## Windows 명령 예시
+
+PowerShell에서 실행 파일을 지정합니다. 설치 위치가 다르면 경로를 바꾸십시오.
+
+```powershell
+$messenger = 'C:\Program Files\LAN Messenger\lmc.exe'
+
+# OpenCode 차단 (실행 중인 동일 사용자 프로세스도 종료될 수 있음)
+& $messenger /agent-policy=opencode=block
+
+# OpenCode 허용
+& $messenger /agent-policy=opencode=allow
+
+# 모두 허용
+& $messenger /agents-allow-all
+
+# 현재 정책을 대화상자로 표시
+& $messenger /agent-status
+```
+
+`/agent-status`는 설정된 정책이며, 실제 프로세스 종료 성공의 증거는 아닙니다.
+실행 중이면 명령을 로컬 인스턴스에 전달하고, 실행 중이 아니면 메신저를 시작합니다.
+`block`과 `/quit`을 함께 쓰면 지속적인 감시가 실행되지 않습니다.
+
+| 키 | 대상 |
+|---|---|
+| `autogpt` | AutoGPT |
+| `babyagi` | BabyAGI |
+| `devin` | Devin / OpenHands |
+| `metagpt` | MetaGPT |
+| `crewai` | CrewAI |
+| `autogen` | Microsoft AutoGen |
+| `claudeComputerUse` | Claude Computer Use |
+| `openaiOperator` | OpenAI Operator / Codex Agent |
+| `agentgpt` | AgentGPT |
+| `chatdev` | ChatDev |
+| `opencode` | OpenCode |
+
+## 관리자 화면에서 확인
+
+상대방의 사용자 정보 → 관리자 상태 조회에서 대상 PC의 관리자 비밀번호로 인증하면 최근 차단 성공·실패와 연결·오류 기록을 볼 수 있습니다.
+`/trace`는 필요하지 않습니다. 조회는 읽기 전용이며 새로고침할 때마다 인증합니다.
+[관리자 비밀번호 설정 및 조회 안내](administrator.md)를 참고하십시오.
+
+## 로컬 로그로 실제 차단 확인
+
+1. 작업을 저장한 뒤 시험할 에이전트 하나만 선택합니다.
+2. 메신저를 완전히 종료한 뒤 `/trace`로 시작해 로그를 켭니다. 실행 중인 인스턴스에 `/trace`를 전달하는 것으로는 로그가 켜지지 않습니다.
+3. 로컬 메뉴나 `/agent-policy=<key>=block`으로 해당 항목을 차단합니다.
+4. 해당 에이전트를 실행하고 약 3초 이상 기다립니다. 로컬 유틸리티 창의 마지막 종료 표시와 로그를 확인합니다.
+5. 허용으로 돌리거나 메신저를 완전히 종료한 뒤 에이전트를 다시 실행해 유지되는지 확인합니다.
+
+```powershell
+Get-Process -Name opencode,opencode-cli -ErrorAction SilentlyContinue
+
+# Windows 기본 로그 위치
+$logFolder = Join-Path $env:LOCALAPPDATA 'LAN Messenger\LAN Messenger\logs'
+$latestLog = Get-ChildItem -LiteralPath $logFolder -Filter 'lmc_*.log' |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($latestLog) {
+    Select-String -LiteralPath $latestLog.FullName -Pattern 'AiAgentBlocker:'
+}
+```
+
+성공 로그는 `terminated blocked agent process`, 실패 로그는 `failed to ...`를 포함합니다.
+Linux `SIGTERM` 성공은 신호 전달 성공이므로 실제 프로세스 소멸도 확인해야 합니다.
+권한이 높은 프로세스는 종료하지 못할 수 있습니다. Windows는 실행 파일 이름을,
+Linux는 `/proc` 프로세스 이름·명령줄을 비교합니다. 이름 변경·다른 런처로 우회할 수 있습니다.
+일반 브라우저와 클라우드 LLM API 사용을 막는 기능은 아닙니다.
+
+## 종료·삭제
+
+- 메신저 종료: 감시 타이머 중단. 저장된 정책은 다음 실행까지 유지합니다.
+- Windows 삭제 프로그램: `/agents-allow-all /unsync /quit`으로 저장 정책도 모두 허용으로 바꾸고 감시를 중단합니다.
+- 실행 파일만 수동 삭제: 실행 중인 메신저도 종료해야 감시가 끝납니다.
+- 방화벽·서비스·예약 작업·영구 실행 금지 규칙은 만들지 않습니다. 종료된 에이전트는 직접 다시 실행해야 합니다.
+
+## 개발자 회귀 테스트
+
+`ctest`로 기본 허용, 정책 직렬화, 원격 정책 무시, Strict 변조·재전송 거부,
+TLS 토큰·인증서·패킷 상한을 확인합니다.
+실제 프로세스 종료 생명주기 테스트는 호스트 작업을 방해하지 않도록 기본적으로 건너뜁니다.
+Linux의 별도 PID 네임스페이스 안에서만 다음처럼 실행하십시오.
+
+```sh
+sudo unshare --pid --fork --mount-proc env LMC_ISOLATED_PROCESS_TEST=1 \
+  QT_QPA_PLATFORM=offscreen ./build/tests/tst_security
+```

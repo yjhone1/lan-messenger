@@ -11,7 +11,7 @@ import {
   ClickEffect,
   ExtractedColor,
   NamingRule,
-} from '../types/kalmuri';
+} from './types';
 
 /**
  * Synthesizes a crisp, mechanical camera shutter sound ("찰칵!") using Web Audio API.

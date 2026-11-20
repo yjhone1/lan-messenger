@@ -28,8 +28,10 @@
 
 #define REMOTE_MAGIC 0x52454D54 // "REMT" in ASCII
 #define DEFAULT_REMOTE_PORT 50005
+constexpr quint32 REMOTE_MAX_PAYLOAD = 16 * 1024 * 1024;
 
 enum RemotePacketType : quint8 {
+  REMOTE_PKT_AUTH = 6,
   REMOTE_PKT_INIT  = 1,
   REMOTE_PKT_FRAME = 2,
   REMOTE_PKT_MOUSE = 3,

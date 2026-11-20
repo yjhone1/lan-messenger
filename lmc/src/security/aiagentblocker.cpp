@@ -36,6 +36,8 @@
 #include <tlhelp32.h>
 #elif defined(Q_OS_LINUX)
 #include <signal.h>
+#include <cerrno>
+#include <cstring>
 #endif
 
 AiAgentBlocker* AiAgentBlocker::instance() {
@@ -171,14 +173,10 @@ const QList<AiAgentSpec>& AiAgentBlocker::specs() {
   return s_specs;
 }
 
-bool AiAgentBlocker::verifyAdminPassword(const QString& password) {
-  return password == QLatin1String(kAdminPassword);
-}
-
 QMap<QString, bool> AiAgentBlocker::defaultPolicy() {
   QMap<QString, bool> defaults;
   for(const AiAgentSpec& spec : specs()) {
-    defaults.insert(spec.key, false); // false = blocked at process level by default
+    defaults.insert(spec.key, true); // New installations allow every agent.
   }
   return defaults;
 }
@@ -186,7 +184,7 @@ QMap<QString, bool> AiAgentBlocker::defaultPolicy() {
 QString AiAgentBlocker::serializePolicy(const QMap<QString, bool>& policyMap) {
   QStringList parts;
   for(const AiAgentSpec& spec : specs()) {
-    const bool allowed = policyMap.value(spec.key, false);
+    const bool allowed = policyMap.value(spec.key, true);
     parts.append(spec.key + QLatin1Char('=') + (allowed ? QLatin1Char('1') : QLatin1Char('0')));
   }
   return parts.join(QLatin1Char(';'));
@@ -221,7 +219,7 @@ QString AiAgentBlocker::matchBlockedAgentKey(const QString& processName,
   }
 
   for(const AiAgentSpec& spec : specs()) {
-    const bool allowed = policyMap.value(spec.key, false);
+    const bool allowed = policyMap.value(spec.key, true);
     if(allowed) {
       continue;
     }
@@ -249,7 +247,7 @@ QMap<QString, bool> AiAgentBlocker::policy() const {
 }
 
 bool AiAgentBlocker::isAllowed(const QString& key) const {
-  return m_policy.value(key, false);
+  return m_policy.value(key, true);
 }
 
 void AiAgentBlocker::setAgentAllowed(const QString& key, bool allowed) {
@@ -314,7 +312,7 @@ void AiAgentBlocker::loadFromSettings() {
   lmcSettings settings;
   settings.beginGroup(QLatin1String(IDS_AIAGENT_GROUP));
   for(const AiAgentSpec& spec : specs()) {
-    m_policy[spec.key] = settings.value(spec.key, false).toBool();
+    m_policy[spec.key] = settings.value(spec.key, true).toBool();
   }
   settings.endGroup();
 }
@@ -361,7 +359,13 @@ int AiAgentBlocker::enforceNow() {
           HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
           if(hProc) {
             const BOOL terminated = TerminateProcess(hProc, 1);
+            const DWORD errorCode = terminated ? 0 : GetLastError();
             CloseHandle(hProc);
+            if(!terminated) {
+              const QString reason = QStringLiteral("TerminateProcess failed (Windows error %1)").arg(errorCode);
+              lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to terminate %1 pid=%2: %3").arg(exeName).arg(pe.th32ProcessID).arg(reason));
+              emit agentProcessBlockFailed(exeName, pe.th32ProcessID, reason);
+            }
             if(terminated) {
               ++blockedCount;
               QString agentName = matchedKey;
@@ -376,6 +380,10 @@ int AiAgentBlocker::enforceNow() {
                                   .arg(pe.th32ProcessID));
               emit agentProcessBlocked(matchedKey, agentName, exeName, static_cast<qint64>(pe.th32ProcessID));
             }
+          } else {
+            const QString reason = QStringLiteral("OpenProcess denied (Windows error %1)").arg(GetLastError());
+            lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to open %1 pid=%2: %3").arg(exeName).arg(pe.th32ProcessID).arg(reason));
+            emit agentProcessBlockFailed(exeName, pe.th32ProcessID, reason);
           }
         }
       } while(Process32NextW(hSnap, &pe));
@@ -421,6 +429,10 @@ int AiAgentBlocker::enforceNow() {
                             .arg(comm, agentName)
                             .arg(pid));
         emit agentProcessBlocked(matchedKey, agentName, comm, pid);
+      } else {
+        const QString reason = QString::fromLocal8Bit(std::strerror(errno));
+        lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to terminate %1 pid=%2: %3").arg(comm).arg(pid).arg(reason));
+        emit agentProcessBlockFailed(comm, pid, reason);
       }
     }
   }

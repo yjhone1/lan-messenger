@@ -1,3 +1,4 @@
+// SIMULATION ONLY: fixed fixtures and illustrative envelopes; not production cryptography or OpenSSL test evidence.
 import {
   DatagramType,
   DatagramTypeNames,
@@ -432,7 +433,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (!pub || !pub.startsWith('-----BEGIN RSA PUBLIC KEY-----')) {
         throw new Error('public key is not PKCS#1');
       }
-      return 'Verified: generateRSA() starts with "-----BEGIN RSA PUBLIC KEY-----" (PKCS#1 type-specific + SPKI dual block)';
+      return 'Simulation only: generateRSA() starts with "-----BEGIN RSA PUBLIC KEY-----" (PKCS#1 type-specific + SPKI dual block)';
     }
   );
 
@@ -454,7 +455,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (decoder.decode(c2s) !== 'hello, lan' || decoder.decode(s2c) !== 'hello, lan') {
         throw new Error('Payload mismatch');
       }
-      return `Verified: 256-byte OAEP envelope sealed 48-byte AES-256 key+IV; client↔server roundtrip matched ("hello, lan")`;
+      return `Simulation only: 256-byte OAEP envelope sealed 48-byte AES-256 key+IV; client↔server roundtrip matched ("hello, lan")`;
     }
   );
 
@@ -527,7 +528,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (enc.length !== 0 || dec.length !== 0) {
         throw new Error('Unknown peer did not fail cleanly');
       }
-      return 'Verified: encrypt/decrypt with unknown peer ID "mallory" rejected with 0 bytes';
+      return 'Simulation only: encrypt/decrypt with unknown peer ID "mallory" rejected with 0 bytes';
     }
   );
 
@@ -546,7 +547,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (recovered.length > 0 && decoder.decode(recovered) === 'integrity probe 1234567890') {
         throw new Error('Tampered ciphertext recovered original plaintext');
       }
-      return 'Verified: Bit-flipped final byte rejected by PKCS#7 padding check';
+      return 'Simulation only: Bit-flipped final byte rejected by PKCS#7 padding check';
     }
   );
 
@@ -563,7 +564,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (session.length !== SEALED_SESSION_SIZE_1024) {
         throw new Error(`Expected ${SEALED_SESSION_SIZE_1024}B, got ${session.length}B`);
       }
-      return `Verified: RSA-1024 PKCS#1 fixture sealed into ${session.length}-byte OAEP-SHA1 envelope (keyIv = ${SESSION_KEY_IV_SIZE}B)`;
+      return `Simulation only: RSA-1024 PKCS#1 fixture sealed into ${session.length}-byte OAEP-SHA1 envelope (keyIv = ${SESSION_KEY_IV_SIZE}B)`;
     }
   );
 
@@ -588,7 +589,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
         const r2 = decoder.decode(client.decrypt('new-server', server.encrypt('old-client', bytes)));
         if (r1 !== m || r2 !== m) throw new Error(`UTF-8 roundtrip failed for ${m}`);
       }
-      return 'Verified: 128B (RSA-1024) vs 256B (RSA-2048) mixed-pair asymmetry + UTF-8/Cyrillic payload exchange';
+      return 'Simulation only: 128B (RSA-1024) vs 256B (RSA-2048) mixed-pair asymmetry + UTF-8/Cyrillic payload exchange';
     }
   );
 
@@ -605,7 +606,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (s1.length !== SEALED_SESSION_SIZE_2048 || s2.length !== SEALED_SESSION_SIZE_2048) {
         throw new Error('Not 256-byte RSA-2048 envelope');
       }
-      return `Verified: Fresh RSA-2048 key and test-rsa2048-pub-pkcs1.pem both seal to ${SEALED_SESSION_SIZE_2048}B envelope`;
+      return `Simulation only: Fresh RSA-2048 key and test-rsa2048-pub-pkcs1.pem both seal to ${SEALED_SESSION_SIZE_2048}B envelope`;
     }
   );
 
@@ -637,7 +638,7 @@ export function runTstCryptoSuite(): CryptoUnitTestResult[] {
       if (!server.getPublicKeyForMode().startsWith('-----BEGIN RSA PUBLIC KEY-----')) {
         throw new Error('Failed to switch back to Legacy v1.0');
       }
-      return 'Verified: Legacy v1.0 (PKCS#1) ↔ Strict v3.0 (SPKI) runtime toggle and OAEP-SHA256 handshake';
+      return 'Simulation only: Legacy v1.0 (PKCS#1) ↔ Strict v3.0 (SPKI) runtime toggle and OAEP-SHA256 handshake';
     }
   );
 

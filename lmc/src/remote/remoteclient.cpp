@@ -22,26 +22,41 @@
 ****************************************************************************/
 
 #include "remoteclient.h"
+#include "security/adminaudit.h"
 #include <QDebug>
+#include <QTimer>
+#include <QCryptographicHash>
 
 RemoteClient::RemoteClient(QObject* parent)
   : QObject(parent),
-    m_socket(new QTcpSocket(this))
+    m_socket(new QSslSocket(this))
 {
-  connect(m_socket, &QTcpSocket::connected, this, &RemoteClient::onConnected);
+  connect(m_socket, &QSslSocket::encrypted, this, &RemoteClient::onConnected);
   connect(m_socket, &QTcpSocket::disconnected, this, &RemoteClient::onDisconnected);
   connect(m_socket, &QTcpSocket::readyRead, this, &RemoteClient::onReadyRead);
   connect(m_socket, &QTcpSocket::errorOccurred, this, &RemoteClient::onErrorOccurred);
+  m_socket->setReadBufferSize(16 * 1024 * 1024 + 9);
+  m_socket->setProtocol(QSsl::TlsV1_2OrLater);
+  connect(m_socket, QOverload<const QList<QSslError>&>::of(&QSslSocket::sslErrors), this,
+      [this](const QList<QSslError>& errors) {
+    if(!m_fingerprint.isEmpty() && m_socket->peerCertificate().digest(QCryptographicHash::Sha256).toHex() == m_fingerprint)
+      m_socket->ignoreSslErrors(errors); // Pinned certificate only, never unconditional bypass.
+    else m_socket->abort();
+  });
 }
 
 RemoteClient::~RemoteClient() {
   disconnectFromHost();
 }
 
-void RemoteClient::connectToHost(const QString& host, quint16 port) {
+void RemoteClient::connectToHost(const QString& host, quint16 port, const QByteArray& token, const QByteArray& fingerprint) {
   disconnectFromHost();
   m_receiveBuffer.clear();
-  m_socket->connectToHost(host, port);
+  if(token.size() != 32 || fingerprint.size() != 64) { emit connectionError(tr("Missing secure session credentials")); return; }
+  m_token = token;
+  m_fingerprint = fingerprint;
+  m_socket->connectToHostEncrypted(host, port);
+  QTimer::singleShot(5000, m_socket, [this] { if(!m_socket->isEncrypted()) m_socket->abort(); });
 }
 
 void RemoteClient::disconnectFromHost() {
@@ -52,19 +67,25 @@ void RemoteClient::disconnectFromHost() {
 }
 
 bool RemoteClient::isConnected() const {
-  return (m_socket && m_socket->state() == QAbstractSocket::ConnectedState);
+  return (m_socket && m_socket->isEncrypted() && m_socket->state() == QAbstractSocket::ConnectedState);
 }
 
 void RemoteClient::onConnected() {
+  AdminAudit::record("remote", "connected", "TLS remote connection established; certificate pin verification follows");
+  if(m_socket->peerCertificate().digest(QCryptographicHash::Sha256).toHex() != m_fingerprint) { m_socket->abort(); return; }
+  sendPacket(REMOTE_PKT_AUTH, m_token);
+  m_token.clear();
   emit connected();
 }
 
 void RemoteClient::onDisconnected() {
+  AdminAudit::record("remote", "disconnected", "Remote viewer connection closed");
   m_receiveBuffer.clear();
   emit disconnected();
 }
 
 void RemoteClient::onErrorOccurred(QAbstractSocket::SocketError socketError) {
+  AdminAudit::record("remote", "error", m_socket->errorString());
   Q_UNUSED(socketError);
   emit connectionError(m_socket->errorString());
 }
@@ -132,6 +153,7 @@ void RemoteClient::sendPacket(quint8 type, const QByteArray& payload) {
 
 void RemoteClient::onReadyRead() {
   m_receiveBuffer.append(m_socket->readAll());
+  if(m_receiveBuffer.size() > REMOTE_MAX_PAYLOAD + sizeof(RemotePacketHeader)) { m_socket->abort(); return; }
 
   while(m_receiveBuffer.size() >= (int)sizeof(RemotePacketHeader)) {
     const RemotePacketHeader* pHeader = reinterpret_cast<const RemotePacketHeader*>(m_receiveBuffer.constData());
@@ -146,6 +168,7 @@ void RemoteClient::onReadyRead() {
       continue;
     }
 
+    if(pHeader->payloadSize > REMOTE_MAX_PAYLOAD) { m_socket->abort(); return; }
     int totalSize = sizeof(RemotePacketHeader) + pHeader->payloadSize;
     if(m_receiveBuffer.size() < totalSize) {
       // Waiting for remaining bytes
@@ -173,7 +196,8 @@ void RemoteClient::processPacket(quint8 type, const QByteArray& payload) {
     if(payload.size() >= (int)sizeof(RemoteFrameHeader)) {
       const RemoteFrameHeader* fHeader = reinterpret_cast<const RemoteFrameHeader*>(payload.constData());
       const char* imgBytes = payload.constData() + sizeof(RemoteFrameHeader);
-      int imgSize = fHeader->imageSize;
+      if(fHeader->imageSize > REMOTE_MAX_PAYLOAD - sizeof(RemoteFrameHeader)) { m_socket->abort(); return; }
+      int imgSize = int(fHeader->imageSize);
 
       if(payload.size() >= (int)(sizeof(RemoteFrameHeader) + imgSize)) {
         QPixmap pixmap;

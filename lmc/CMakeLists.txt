@@ -55,6 +55,7 @@ add_library(lmc_core STATIC
     src/gui/history/historywindow.cpp
     src/gui/widgets/imagepicker.cpp
     src/gui/widgets/imagepickeraction.cpp
+    src/app/adminactions.cpp
     src/app/apprunner.cpp
     src/app/lmc.cpp
     src/core/lmcstrings.cpp
@@ -84,11 +85,16 @@ add_library(lmc_core STATIC
     src/gui/contacts/usertreewidget.cpp
     src/network/webnetwork.cpp
     src/messaging/xmlmessage.cpp
+    src/remote/remotetls.cpp
     src/remote/remoteserver.cpp
     src/remote/remoteclient.cpp
     src/remote/remoteviewerwindow.cpp
+    src/security/adminauth.cpp
+    src/security/adminaudit.cpp
+    src/security/utilitydialog.cpp
     src/security/aiagentblocker.cpp
     src/remote/remotedefinitions.h
+    src/remote/remotetls.h
     src/remote/remoteserver.h
     src/remote/remoteclient.h
     src/remote/remoteviewerwindow.h

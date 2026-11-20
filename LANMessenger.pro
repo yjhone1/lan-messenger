@@ -24,6 +24,7 @@ SOURCES += \
     lmcapp/src/qtlocalpeer.cpp \
     lmcapp/src/qtsingleapplication.cpp \
     lmc/src/app/main.cpp \
+    lmc/src/app/adminactions.cpp \
     lmc/src/app/apprunner.cpp \
     lmc/src/app/lmc.cpp \
     lmc/src/capture/capturewindow.cpp \
@@ -67,6 +68,11 @@ SOURCES += \
     lmc/src/network/tcpnetwork.cpp \
     lmc/src/network/udpnetwork.cpp \
     lmc/src/network/webnetwork.cpp \
+    lmc/src/security/aiagentblocker.cpp \
+    lmc/src/security/adminauth.cpp \
+    lmc/src/security/adminaudit.cpp \
+    lmc/src/security/utilitydialog.cpp \
+    lmc/src/remote/remotetls.cpp \
     lmc/src/remote/remoteclient.cpp \
     lmc/src/remote/remoteserver.cpp \
     lmc/src/remote/remoteviewerwindow.cpp
@@ -125,6 +131,11 @@ HEADERS += \
     lmc/src/network/tcpnetwork.h \
     lmc/src/network/udpnetwork.h \
     lmc/src/network/webnetwork.h \
+    lmc/src/security/aiagentblocker.h \
+    lmc/src/security/adminauth.h \
+    lmc/src/security/adminaudit.h \
+    lmc/src/security/utilitydialog.h \
+    lmc/src/remote/remotetls.h \
     lmc/src/remote/remoteclient.h \
     lmc/src/remote/remotedefinitions.h \
     lmc/src/remote/remoteserver.h \
