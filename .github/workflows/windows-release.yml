@@ -510,8 +510,12 @@ jobs:
           Copy-Item "stage-win32/*" -Destination "lmc/release-x86" -Recurse -Force
 
           # Keep the x86 prerequisite on the VS 2019/VC142 line used for the Win7 compatibility build.
-          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vc_redist.x86.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x86.exe"
-          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x64.exe"
+          # Avoid intermittent .NET HTTP ResponseEnded failures on the CDN.
+          # x86 remains on VC142; x64 follows Microsoft's current v14 permalink.
+          & curl.exe --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 30 --max-time 180 --output "lmc/setup/win32/prereqs/vc_redist.x86.exe" "https://aka.ms/vs/16/release/vc_redist.x86.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download the VC142 x86 prerequisite.' }
+          & curl.exe --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 30 --max-time 180 --output "lmc/setup/win32/prereqs/vc_redist.x64.exe" "https://aka.ms/vc14/vc_redist.x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download the current v14 x64 prerequisite.' }
 
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
