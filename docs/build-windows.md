@@ -11,6 +11,34 @@ the same level as the `lmc` folder as the OpenSSL folder is recommended
 It is possible to compile using other build chains/IDEs, but the CI build
 uses CMake with the MSVC tool chain.
 
+## Windows version and architecture
+
+| Target OS | Build |
+|---|---|
+| Windows 10/11 x64 | Qt 6.6.3 / x64 / OpenSSL 3 |
+| Windows 7 SP1 x86 | Qt 5.15.2 / x86 / MSVC v142 (14.29) / OpenSSL 1.1.1w |
+| Windows 7 SP1 x64 | The same x86 compatibility build, running under WOW64 |
+
+The Qt 6 x64 executable is not the Windows 7 executable. The universal
+installer selects the x86 payload on Windows 7, including 64-bit Windows 7.
+Actual Windows 7 operation still requires testing on that OS; passing a
+GitHub-hosted Windows Server build is not evidence of Windows 7 runtime compatibility.
+Windows 7 updates/prerequisites (including Universal CRT) may be required.
+
+Qt's prebuilt 5.15.2 Windows libraries dynamically load `libssl-1_1.dll`
+and `libcrypto-1_1.dll` for TLS. Supplying only OpenSSL 3 DLLs makes the
+direct EVP crypto tests pass while leaving Qt TLS unavailable. The x86 CI
+therefore builds the checksum-pinned 1.1.1w source with the same v142 toolchain,
+uses those headers/libraries for the application, and stages the matching DLLs.
+It also bundles the VC142 x86 CRT and uses the VS 2019 x86 redistributable;
+it must not copy the runner's newer SysWOW64 runtime into the compatibility package.
+OpenSSL 1.1.1 is a legacy dependency outside public upstream support; it is
+confined to the Qt 5 compatibility build, not the Qt 6 Windows 10/11 build.
+
+The `remote` test reports Qt's TLS build/runtime versions and fails explicitly
+if the backend is unavailable. CI saves the detailed CTest log and JUnit report
+as the `tests-win32` artifact even when tests fail.
+
 ## Build
 
 The build is driven by CMake; the binaries are written to the build

@@ -9,6 +9,7 @@
 class TstRemote : public QObject {
   Q_OBJECT
 private slots:
+  void initTestCase();
   void authenticatedTlsConnection();
   void incorrectTokenCannotAccessDesktop();
   void incorrectCertificatePinFailsClosed();
@@ -16,6 +17,14 @@ private slots:
   void oversizedAuthenticatedPacketDisconnects();
   void fragmentedMessengerIdentificationAndOversizedFrame();
 };
+
+void TstRemote::initTestCase() {
+  const bool available = QSslSocket::supportsSsl();
+  qInfo().noquote() << "Qt TLS build:" << QSslSocket::sslLibraryBuildVersionString()
+                   << "| runtime:" << QSslSocket::sslLibraryVersionString()
+                   << "| available:" << available;
+  QVERIFY2(available, "Qt TLS backend unavailable. Qt 5.15.2 needs matching x86 OpenSSL 1.1 DLLs; OpenSSL 3 DLLs are not substitutes.");
+}
 
 void TstRemote::authenticatedTlsConnection() {
   RemoteServer server;
