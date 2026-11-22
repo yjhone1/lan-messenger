@@ -24,15 +24,25 @@ if ($missing.Count -gt 0) {
     & tar.exe -xf $archive -C $workspace
     if ($LASTEXITCODE -ne 0) { throw 'OpenSSL source extraction failed.' }
     $perl = (Get-Command perl.exe -ErrorAction Stop).Source
+    $originalCc = $env:CC
+    $originalCxx = $env:CXX
     Push-Location (Join-Path $workspace "openssl-$version")
     try {
+        # CMake's absolute CC/CXX paths contain spaces. OpenSSL 1.1's nmake
+        # generator does not quote those environment values; use PATH here.
+        $env:CC = 'cl'
+        $env:CXX = 'cl'
         & $perl Configure VC-WIN32 shared no-asm no-tests '-D_WIN32_WINNT=0x0601' "--prefix=$Prefix" "--openssldir=$Prefix/ssl"
         if ($LASTEXITCODE -ne 0) { throw 'OpenSSL Configure failed.' }
         & nmake.exe /nologo
         if ($LASTEXITCODE -ne 0) { throw 'OpenSSL build failed.' }
         & nmake.exe /nologo install_sw
         if ($LASTEXITCODE -ne 0) { throw 'OpenSSL installation failed.' }
-    } finally { Pop-Location }
+    } finally {
+        $env:CC = $originalCc
+        $env:CXX = $originalCxx
+        Pop-Location
+    }
 }
 
 foreach ($relative in $required) {
