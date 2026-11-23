@@ -11,6 +11,7 @@ class AdminAuth {
 public:
   explicit AdminAuth(std::function<qint64()> clock = {});
   static bool configured();
+  static bool verifyLocalPassword(const QString& password);
   static bool setPassword(const QString& password, const QString& currentPassword = {});
   static QByteArray derive(const QString& password, const QByteArray& salt);
   static QByteArray context(const QString& requester, const QString& target,

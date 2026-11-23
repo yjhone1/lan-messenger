@@ -36,6 +36,16 @@ private slots:
     const auto serialized = local.value("Security/AdminVerifier").toByteArray();
     QVERIFY(!serialized.contains(password.toUtf8()));
   }
+  void localSettingsRequireConfiguredAndCurrentPassword() {
+    QVERIFY(!AdminAuth::verifyLocalPassword(""));
+    QVERIFY(!AdminAuth::verifyLocalPassword(password));
+    QVERIFY(AdminAuth::setPassword(password));
+    QVERIFY(!AdminAuth::verifyLocalPassword("incorrect"));
+    QVERIFY(AdminAuth::verifyLocalPassword(password));
+    QVERIFY(AdminAuth::setPassword("another-long-password", password));
+    QVERIFY(!AdminAuth::verifyLocalPassword(password));
+    QVERIFY(AdminAuth::verifyLocalPassword("another-long-password"));
+  }
   void correctProofIsSingleUseAndBoundToPeerAndPurpose() {
     QVERIFY(AdminAuth::setPassword(password));
     AdminAuth auth;

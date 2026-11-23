@@ -46,6 +46,10 @@ bool AdminAuth::configured() {
   return setting("Security/AdminSalt").size() == 16 && setting("Security/AdminVerifier").size() == 32;
 }
 
+bool AdminAuth::verifyLocalPassword(const QString& password) {
+  return configured() && equal(derive(password, setting("Security/AdminSalt")), setting("Security/AdminVerifier"));
+}
+
 QByteArray AdminAuth::derive(const QString& password, const QByteArray& salt) {
   if(salt.size() != 16 || password.size() > 1024) return {};
   QByteArray utf8 = password.toUtf8(), key(32, 0);
@@ -58,7 +62,7 @@ QByteArray AdminAuth::derive(const QString& password, const QByteArray& salt) {
 
 bool AdminAuth::setPassword(const QString& password, const QString& currentPassword) {
   if(password.size() < 12 || password.size() > 1024) return false;
-  if(configured() && !equal(derive(currentPassword, setting("Security/AdminSalt")), setting("Security/AdminVerifier"))) return false;
+  if(configured() && !verifyLocalPassword(currentPassword)) return false;
   const QByteArray salt = randomBytes(16), key = derive(password, salt);
   if(key.size() != 32) return false;
   lmcSettings settings;

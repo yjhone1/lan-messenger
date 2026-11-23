@@ -4,6 +4,7 @@
 #include "adminauth.h"
 #include "adminaudit.h"
 #include <QInputDialog>
+#include <QElapsedTimer>
 #include <QMessageBox>
 #include <QLineEdit>
 #include <QCheckBox>
@@ -16,8 +17,30 @@
 #include <QVBoxLayout>
 
 void showLocalUtilityDialog(QWidget* parent) {
+  if(!AdminAuth::configured()) {
+    QMessageBox::information(parent, QObject::tr("Administrator Password"),
+        QObject::tr("Set an administrator password in Utilities > Administrator Password before opening AI Agent Settings."));
+    return;
+  }
+  static QElapsedTimer failedAttempt;
+  if(failedAttempt.isValid() && failedAttempt.elapsed() < 30000) {
+    QMessageBox::warning(parent, QObject::tr("Administrator Password"),
+        QObject::tr("Please wait 30 seconds after an incorrect password before trying again."));
+    return;
+  }
+  bool accepted = false;
+  const QString credential = QInputDialog::getText(parent, QObject::tr("Administrator Password"),
+      QObject::tr("Enter this PC's administrator password to open AI Agent Settings:"),
+      QLineEdit::Password, {}, &accepted);
+  if(!accepted) return;
+  if(!AdminAuth::verifyLocalPassword(credential)) {
+    failedAttempt.start();
+    AdminAudit::record("admin", "authentication", "Local AI agent settings authentication failed");
+    QMessageBox::warning(parent, QObject::tr("Administrator Password"), QObject::tr("Incorrect administrator password."));
+    return;
+  }
+  failedAttempt.invalidate();
   auto* dialog = new QDialog(parent);
-  dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setObjectName("localUtilityDialog");
   dialog->setWindowTitle(QObject::tr("Local Utilities - AI Agent Settings"));
   dialog->resize(640, 520);
@@ -72,7 +95,9 @@ void showLocalUtilityDialog(QWidget* parent) {
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
   QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
   layout->addWidget(buttons);
-  dialog->show();
+  // Keep an authenticated settings window from being left accessible behind the main window.
+  dialog->exec();
+  delete dialog;
 }
 
 void configureLocalAdminPassword(QWidget* dialog) {
