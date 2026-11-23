@@ -5,7 +5,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
     file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" _lmc_sub_ver LIMIT_COUNT 1)
     string(STRIP "${_lmc_sub_ver}" _lmc_sub_ver)
 else()
-    set(_lmc_sub_ver "1.4.0.4")
+    set(_lmc_sub_ver "1.4.0.5")
 endif()
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -55,6 +55,7 @@ add_library(lmc_core STATIC
     src/gui/history/historywindow.cpp
     src/gui/widgets/imagepicker.cpp
     src/gui/widgets/imagepickeraction.cpp
+    src/app/adminactions.cpp
     src/app/apprunner.cpp
     src/app/lmc.cpp
     src/core/lmcstrings.cpp
@@ -84,11 +85,16 @@ add_library(lmc_core STATIC
     src/gui/contacts/usertreewidget.cpp
     src/network/webnetwork.cpp
     src/messaging/xmlmessage.cpp
+    src/remote/remotetls.cpp
     src/remote/remoteserver.cpp
     src/remote/remoteclient.cpp
     src/remote/remoteviewerwindow.cpp
+    src/security/adminauth.cpp
+    src/security/adminaudit.cpp
+    src/security/utilitydialog.cpp
     src/security/aiagentblocker.cpp
     src/remote/remotedefinitions.h
+    src/remote/remotetls.h
     src/remote/remoteserver.h
     src/remote/remoteclient.h
     src/remote/remoteviewerwindow.h
@@ -222,8 +228,6 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}/lang
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lang
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/lang ${LMC_RUNTIME_DIR}/lang
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/lang ${CMAKE_CURRENT_BINARY_DIR}/lang
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/sounds ${CMAKE_CURRENT_BINARY_DIR}/sounds
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/sounds ${LMC_RUNTIME_DIR}/sounds
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${LMC_RES_DIR}/themes ${CMAKE_CURRENT_BINARY_DIR}/themes
@@ -241,7 +245,23 @@ set(LMC_TRANSLATIONS_DIR "${CMAKE_SOURCE_DIR}/translations")
 if(NOT EXISTS "${LMC_TRANSLATIONS_DIR}" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../translations")
     set(LMC_TRANSLATIONS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../translations")
 endif()
-if(TARGET Qt${QT_VERSION_MAJOR}::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
+if(TARGET Qt${QT_VERSION_MAJOR}::lrelease)
+    set(LMC_LRELEASE_COMMAND Qt${QT_VERSION_MAJOR}::lrelease)
+else()
+    # Qt binary distributions may include lrelease without a LinguistTools CMake package.
+    if(TARGET Qt${QT_VERSION_MAJOR}::qmake)
+        get_target_property(LMC_QMAKE_PATH Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
+        get_filename_component(LMC_QT_BIN_DIR "${LMC_QMAKE_PATH}" DIRECTORY)
+    endif()
+    find_program(LMC_LRELEASE_EXECUTABLE
+        NAMES lrelease-qt${QT_VERSION_MAJOR} lrelease${QT_VERSION_MAJOR} lrelease
+        HINTS "${LMC_QT_BIN_DIR}" "/usr/lib/qt${QT_VERSION_MAJOR}/bin")
+    if(NOT LMC_LRELEASE_EXECUTABLE)
+        message(FATAL_ERROR "Qt lrelease is required to generate current translations. Install Qt Linguist tools.")
+    endif()
+    set(LMC_LRELEASE_COMMAND "${LMC_LRELEASE_EXECUTABLE}")
+endif()
+if(EXISTS "${LMC_TRANSLATIONS_DIR}")
     file(GLOB LMC_TS_FILES CONFIGURE_DEPENDS
          ${LMC_TRANSLATIONS_DIR}/lmc_*.ts)
     list(SORT LMC_TS_FILES)
@@ -254,7 +274,7 @@ if(TARGET Qt${QT_VERSION_MAJOR}::lrelease AND EXISTS "${LMC_TRANSLATIONS_DIR}")
             OUTPUT ${qm_out}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${LMC_RUNTIME_DIR}/lang
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lang
-            COMMAND Qt${QT_VERSION_MAJOR}::lrelease ${ts} -qm ${qm_out}
+            COMMAND ${LMC_LRELEASE_COMMAND} ${ts} -qm ${qm_out}
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${qm_out} ${CMAKE_CURRENT_BINARY_DIR}/lang/${qm_name}.qm
             DEPENDS ${ts}
             COMMENT "lrelease ${qm_name}.ts"

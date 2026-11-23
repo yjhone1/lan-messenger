@@ -1,16 +1,15 @@
 export const VERSION_CONFIG = {
-  version: 'v1.4.0.4',
-  rawVersion: '1.4.0.4',
-  displayVersion: 'v1.4.0.4',
-  current: 'v1.4.0.4',
+  version: 'v1.4.0.5',
+  rawVersion: '1.4.0.5',
+  displayVersion: 'v1.4.0.5',
+  current: 'v1.4.0.5',
   appName: 'LAN Messenger',
-  fullTitle: 'LAN Messenger v1.4.0.4',
+  fullTitle: 'LAN Messenger v1.4.0.5',
   legacyBaseVersion: '1.2.39',
 } as const;
 
 export const APP_VERSION = VERSION_CONFIG.version;
 export const AUTHORIZED_ADMIN_IP = '192.168.10.212';
-export const UTILITY_ADMIN_PASSWORD = '192.168.10.212';
 
 export type AiAgentKey =
   | 'autogpt'
@@ -140,17 +139,17 @@ export const REPRESENTATIVE_AI_AGENTS: AiAgentProcessInfo[] = [
 ];
 
 export const DEFAULT_AI_AGENT_BLOCKS: UserAiAgentBlockMap = {
-  autogpt: false,          // false = 차단(OFF, 권장 보안 상태)
-  babyagi: false,
-  devin: false,
-  metagpt: false,
-  crewai: false,
-  autogen: false,
-  claudeComputerUse: false,
-  openaiOperator: false,
-  agentgpt: false,
-  chatdev: false,
-  opencode: false,
+  autogpt: true,          // true = 허용(ON, 최초 설치 기본값)
+  babyagi: true,
+  devin: true,
+  metagpt: true,
+  crewai: true,
+  autogen: true,
+  claudeComputerUse: true,
+  openaiOperator: true,
+  agentgpt: true,
+  chatdev: true,
+  opencode: true,
 };
 
 export interface UserUtilityFeatures {

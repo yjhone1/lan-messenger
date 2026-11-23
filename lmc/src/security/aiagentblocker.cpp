@@ -27,6 +27,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
+#include <QUuid>
 
 #ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
@@ -36,6 +41,8 @@
 #include <tlhelp32.h>
 #elif defined(Q_OS_LINUX)
 #include <signal.h>
+#include <cerrno>
+#include <cstring>
 #endif
 
 AiAgentBlocker* AiAgentBlocker::instance() {
@@ -55,7 +62,7 @@ AiAgentBlocker::~AiAgentBlocker() {
   stop();
 }
 
-const QList<AiAgentSpec>& AiAgentBlocker::specs() {
+const QList<AiAgentSpec>& AiAgentBlocker::builtInSpecs() {
   static const QList<AiAgentSpec> s_specs = {
       {
           QStringLiteral("autogpt"),
@@ -171,14 +178,131 @@ const QList<AiAgentSpec>& AiAgentBlocker::specs() {
   return s_specs;
 }
 
-bool AiAgentBlocker::verifyAdminPassword(const QString& password) {
-  return password == QLatin1String(kAdminPassword);
+bool AiAgentBlocker::validateCustomAgent(AiAgentSpec& spec, QString* error) {
+  spec.name = spec.name.trimmed();
+  QStringList normalized;
+  const QRegularExpression executable(QStringLiteral("^[a-z0-9][a-z0-9_.-]{0,127}$"));
+  const QStringList reserved = {"python", "python3", "pythonw", "node", "nodejs", "java", "javaw",
+      "cmd", "powershell", "pwsh", "bash", "sh", "wscript", "cscript", "rundll32", "dllhost",
+      "svchost", "system", "registry", "smss", "csrss", "wininit", "winlogon", "services", "lsass",
+      "explorer", "taskmgr", "conhost", "dwm", "chrome", "msedge", "firefox", "iexplore", "lmc", "lan-messenger"};
+  if(spec.name.isEmpty() || spec.name.size() > 100 || spec.matchExecutables.isEmpty() || spec.matchExecutables.size() > 16) {
+    if(error) *error = tr("Enter a name (up to 100 characters) and 1 to 16 executable names.");
+    return false;
+  }
+  for(QString value : spec.matchExecutables) {
+    value = value.trimmed().toLower();
+    QString stem = value;
+    if(stem.endsWith(".exe")) stem.chop(4);
+    if(!executable.match(value).hasMatch() || reserved.contains(stem) || stem.startsWith("python")) {
+      if(error) *error = tr("Use exact agent executable names, such as myagent.exe. Paths, wildcards, browsers, system processes and shared runtimes are not allowed.");
+      return false;
+    }
+    if(!normalized.contains(value)) normalized.append(value);
+  }
+  spec.matchExecutables = normalized;
+  spec.processBinary = normalized.join(", ");
+  spec.category = "custom";
+  spec.description = tr("Custom agent: exact executable name match.");
+  spec.matchCmdSignatures.clear();
+  return true;
+}
+
+QList<AiAgentSpec>& AiAgentBlocker::registry() {
+  static QList<AiAgentSpec> entries = [] {
+    QList<AiAgentSpec> list = builtInSpecs();
+    lmcSettings settings;
+    const auto json = QJsonDocument::fromJson(settings.value("Security/CustomAiAgents").toByteArray()).array();
+    const QRegularExpression keyPattern("^custom_[a-f0-9]{32}$");
+    for(const auto& value : json) {
+      if(list.size() >= builtInSpecs().size() + 100) break;
+      const auto object = value.toObject();
+      AiAgentSpec spec;
+      spec.key = object.value("key").toString();
+      spec.name = object.value("name").toString();
+      for(const auto& exe : object.value("executables").toArray()) spec.matchExecutables.append(exe.toString());
+      if(!keyPattern.match(spec.key).hasMatch() || !validateCustomAgent(spec, nullptr)) continue;
+      bool duplicate = false;
+      for(const auto& existing : list) {
+        if(existing.key == spec.key) duplicate = true;
+        for(const auto& exe : existing.matchExecutables)
+          if(spec.matchExecutables.contains(exe.toLower())) duplicate = true;
+      }
+      if(!duplicate) list.append(spec);
+    }
+    return list;
+  }();
+  return entries;
+}
+
+const QList<AiAgentSpec>& AiAgentBlocker::specs() { return registry(); }
+
+bool AiAgentBlocker::isCustomAgent(const QString& key) {
+  for(const auto& spec : specs()) if(spec.key == key) return spec.category == "custom";
+  return false;
+}
+
+void AiAgentBlocker::saveCustomSpecs() {
+  QJsonArray entries;
+  for(const auto& spec : specs()) {
+    if(spec.category != "custom") continue;
+    entries.append(QJsonObject{{"key", spec.key}, {"name", spec.name},
+        {"executables", QJsonArray::fromStringList(spec.matchExecutables)}});
+  }
+  lmcSettings settings;
+  settings.setValue("Security/CustomAiAgents", QJsonDocument(entries).toJson(QJsonDocument::Compact));
+  settings.sync();
+}
+
+bool AiAgentBlocker::saveCustomAgent(const QString& key, const QString& name, const QStringList& executables, QString* error) {
+  if((!key.isEmpty() && !isCustomAgent(key)) || (key.isEmpty() && specs().size() >= builtInSpecs().size() + 100)) {
+    if(error) *error = tr("Only custom agents can be edited; at most 100 custom agents can be added.");
+    return false;
+  }
+  AiAgentSpec spec;
+  spec.key = key.isEmpty() ? "custom_" + QUuid::createUuid().toString(QUuid::WithoutBraces).remove('-') : key;
+  spec.name = name;
+  spec.matchExecutables = executables;
+  if(!validateCustomAgent(spec, error)) return false;
+  for(const auto& existing : specs()) {
+    if(existing.key == spec.key) continue;
+    for(const auto& exe : existing.matchExecutables) {
+      if(spec.matchExecutables.contains(exe.toLower())) {
+        if(error) *error = tr("An executable name is already registered by %1.").arg(existing.name);
+        return false;
+      }
+    }
+  }
+  auto& list = registry();
+  bool replaced = false;
+  for(auto& existing : list) if(existing.key == spec.key) { existing = spec; replaced = true; break; }
+  if(!replaced) list.append(spec);
+  m_policy[spec.key] = true;
+  saveCustomSpecs();
+  saveToSettings();
+  emit specsChanged();
+  emit policyChanged(m_policy);
+  return true;
+}
+
+bool AiAgentBlocker::removeCustomAgent(const QString& key) {
+  if(!isCustomAgent(key)) return false;
+  auto& list = registry();
+  for(int i = 0; i < list.size(); ++i) if(list[i].key == key) { list.removeAt(i); break; }
+  m_policy.remove(key);
+  lmcSettings settings;
+  settings.remove(QString::fromLatin1(IDS_AIAGENT_GROUP) + "/" + key);
+  settings.sync();
+  saveCustomSpecs();
+  emit specsChanged();
+  emit policyChanged(m_policy);
+  return true;
 }
 
 QMap<QString, bool> AiAgentBlocker::defaultPolicy() {
   QMap<QString, bool> defaults;
   for(const AiAgentSpec& spec : specs()) {
-    defaults.insert(spec.key, false); // false = blocked at process level by default
+    defaults.insert(spec.key, true); // New installations allow every agent.
   }
   return defaults;
 }
@@ -186,7 +310,7 @@ QMap<QString, bool> AiAgentBlocker::defaultPolicy() {
 QString AiAgentBlocker::serializePolicy(const QMap<QString, bool>& policyMap) {
   QStringList parts;
   for(const AiAgentSpec& spec : specs()) {
-    const bool allowed = policyMap.value(spec.key, false);
+    const bool allowed = policyMap.value(spec.key, true);
     parts.append(spec.key + QLatin1Char('=') + (allowed ? QLatin1Char('1') : QLatin1Char('0')));
   }
   return parts.join(QLatin1Char(';'));
@@ -221,7 +345,7 @@ QString AiAgentBlocker::matchBlockedAgentKey(const QString& processName,
   }
 
   for(const AiAgentSpec& spec : specs()) {
-    const bool allowed = policyMap.value(spec.key, false);
+    const bool allowed = policyMap.value(spec.key, true);
     if(allowed) {
       continue;
     }
@@ -249,7 +373,7 @@ QMap<QString, bool> AiAgentBlocker::policy() const {
 }
 
 bool AiAgentBlocker::isAllowed(const QString& key) const {
-  return m_policy.value(key, false);
+  return m_policy.value(key, true);
 }
 
 void AiAgentBlocker::setAgentAllowed(const QString& key, bool allowed) {
@@ -314,7 +438,7 @@ void AiAgentBlocker::loadFromSettings() {
   lmcSettings settings;
   settings.beginGroup(QLatin1String(IDS_AIAGENT_GROUP));
   for(const AiAgentSpec& spec : specs()) {
-    m_policy[spec.key] = settings.value(spec.key, false).toBool();
+    m_policy[spec.key] = settings.value(spec.key, true).toBool();
   }
   settings.endGroup();
 }
@@ -361,7 +485,13 @@ int AiAgentBlocker::enforceNow() {
           HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
           if(hProc) {
             const BOOL terminated = TerminateProcess(hProc, 1);
+            const DWORD errorCode = terminated ? 0 : GetLastError();
             CloseHandle(hProc);
+            if(!terminated) {
+              const QString reason = QStringLiteral("TerminateProcess failed (Windows error %1)").arg(errorCode);
+              lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to terminate %1 pid=%2: %3").arg(exeName).arg(pe.th32ProcessID).arg(reason));
+              emit agentProcessBlockFailed(exeName, pe.th32ProcessID, reason);
+            }
             if(terminated) {
               ++blockedCount;
               QString agentName = matchedKey;
@@ -376,6 +506,10 @@ int AiAgentBlocker::enforceNow() {
                                   .arg(pe.th32ProcessID));
               emit agentProcessBlocked(matchedKey, agentName, exeName, static_cast<qint64>(pe.th32ProcessID));
             }
+          } else {
+            const QString reason = QStringLiteral("OpenProcess denied (Windows error %1)").arg(GetLastError());
+            lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to open %1 pid=%2: %3").arg(exeName).arg(pe.th32ProcessID).arg(reason));
+            emit agentProcessBlockFailed(exeName, pe.th32ProcessID, reason);
           }
         }
       } while(Process32NextW(hSnap, &pe));
@@ -421,6 +555,10 @@ int AiAgentBlocker::enforceNow() {
                             .arg(comm, agentName)
                             .arg(pid));
         emit agentProcessBlocked(matchedKey, agentName, comm, pid);
+      } else {
+        const QString reason = QString::fromLocal8Bit(std::strerror(errno));
+        lmcTrace::write(QStringLiteral("AiAgentBlocker: failed to terminate %1 pid=%2: %3").arg(comm).arg(pid).arg(reason));
+        emit agentProcessBlockFailed(comm, pid, reason);
       }
     }
   }

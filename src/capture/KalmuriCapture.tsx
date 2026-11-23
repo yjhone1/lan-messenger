@@ -13,7 +13,7 @@ import {
   PresetSize,
   RECOMMENDED_CAPTURE_SHORTCUTS,
   validateCaptureShortcut,
-} from '../types/kalmuri';
+} from './types';
 import {
   buildColorInfo,
   captureDomRegion,
@@ -22,7 +22,7 @@ import {
   generateFileName,
   playShutterSound,
   triggerFileDownload,
-} from '../services/kalmuriEngine';
+} from './kalmuriEngine';
 
 interface KalmuriCaptureProps {
   isOpen: boolean;
@@ -677,7 +677,7 @@ export function KalmuriCapture({
           <div className="flex items-center gap-1.5 font-bold tracking-tight text-[11px]">
             <span>📸</span>
             <span>오픈소스캡쳐</span>
-            <span className="text-[10px] opacity-80 font-normal">v1.4.0.4</span>
+            <span className="text-[10px] opacity-80 font-normal">v1.4.0.5</span>
             {!isCaptureEnabled && (
               <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-bold">
                 차단됨(OFF)
@@ -2103,7 +2103,7 @@ function KalmuriSettingsModal({
                 <span className="text-3xl">📸</span>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    오픈소스캡쳐 v1.4.0.4
+                    오픈소스캡쳐 v1.4.0.5
                   </h3>
                   <p className="text-gray-500 text-xs">
                     단축키 한 번으로 화면 캡처 및 화면 녹화
@@ -2114,7 +2114,7 @@ function KalmuriSettingsModal({
               <div className="text-xs space-y-1 text-gray-700">
                 <p><b>구분:</b> 오픈소스 화면 캡처 & 화면 녹화 도구</p>
                 <p><b>라이선스:</b> 오픈소스 (개인/기업 누구나 무료)</p>
-                <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.4 완벽 통합 및 단축키 충돌 방지</p>
+                <p><b>랜메신저 연동:</b> LAN Messenger v1.4.0.5 완벽 통합 및 단축키 충돌 방지</p>
               </div>
 
               <div className="pt-2 border-t flex justify-between items-center">

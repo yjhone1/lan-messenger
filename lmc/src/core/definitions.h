@@ -35,13 +35,13 @@
 #define IDA_COMPANY "lmc"
 #endif
 //	Canonical release version synchronized across CMake, NSIS, and C++ runtime.
-#define LMC_APP_VERSION "1.4.0.4"
+#define LMC_APP_VERSION "1.4.0.5"
 #ifndef IDA_VERSION
 #define IDA_VERSION LMC_APP_VERSION
 #endif
 #define IDA_DESCRIPTION "LAN Messenger is a free peer-to-peer messaging application for intra-network communication " \
                         "and does not require a server.\n"                                                            \
-                        "Version 1.4.0.4 adds Remote Desktop (password authentication, any IP) under System Info, "   \
+                        "Version 1.4.0.5 adds Remote Desktop (password authentication, any IP) under System Info, "   \
                         "always-active OpenSourceCapture, and Peer-Only Utility Tab with 11 AI Agent Process Blockers (including OpenCode)."
 #define IDA_COPYRIGHT "Copyright (C) 2010-2016 Qualia Digital Solutions."
 #define IDA_CONTACT "lanmsngr@gmail.com"
@@ -134,6 +134,10 @@ enum MessageType {
   MT_RemoteReject,
   MT_RemoteClose,
   MT_UtilityPolicy,
+  MT_AdminChallenge,
+  MT_AdminChallengeReply,
+  MT_AdminDiagnostics,
+  MT_AdminDiagnosticsReply,
   //	These are used only for local communication between layers
   MT_Group,
   MT_Version,
@@ -172,6 +176,10 @@ const QString MessageTypeNames[] = {
   "remotereject",
   "remoteclose",
   "utilitypolicy",
+  "adminchallenge",
+  "adminchallengereply",
+  "admindiagnostics",
+  "admindiagnosticsreply",
   //	These are used only for local communication between layers
   "group",
   "version",

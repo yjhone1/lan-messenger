@@ -44,12 +44,10 @@ class AiAgentBlocker : public QObject {
   Q_OBJECT
 
 public:
-  static constexpr const char* kAdminPassword = "192.168.10.212";
 
   static AiAgentBlocker* instance();
 
   static const QList<AiAgentSpec>& specs();
-  static bool verifyAdminPassword(const QString& password);
   static QMap<QString, bool> defaultPolicy();
   static QString serializePolicy(const QMap<QString, bool>& policyMap);
   static QMap<QString, bool> deserializePolicy(const QString& serialized);
@@ -65,17 +63,24 @@ public:
   void setAgentAllowed(const QString& key, bool allowed);
   void setPolicy(const QMap<QString, bool>& newPolicy);
   void setAllAllowed(bool allowed);
+  // Custom entries match exact executable names only; new/edited entries start allowed.
+  bool saveCustomAgent(const QString& key, const QString& name, const QStringList& executables, QString* error = nullptr);
+  bool removeCustomAgent(const QString& key);
+  static bool isCustomAgent(const QString& key);
 
   QString serializedPolicy() const;
   void applySerializedPolicy(const QString& serialized);
 
   void start(int intervalMs = 3000);
   void stop();
+  bool monitoring() const { return m_scanTimer->isActive(); }
 
 public slots:
   int enforceNow();
 
 signals:
+  void specsChanged();
+  void agentProcessBlockFailed(const QString& processName, qint64 pid, const QString& reason);
   void policyChanged(const QMap<QString, bool>& policyMap);
   void agentProcessBlocked(const QString& agentKey,
                            const QString& agentName,
@@ -88,6 +93,10 @@ private:
 
   void loadFromSettings();
   void saveToSettings() const;
+  static const QList<AiAgentSpec>& builtInSpecs();
+  static QList<AiAgentSpec>& registry();
+  static bool validateCustomAgent(AiAgentSpec& spec, QString* error);
+  static void saveCustomSpecs();
 
   QMap<QString, bool> m_policy;
   QTimer* m_scanTimer;

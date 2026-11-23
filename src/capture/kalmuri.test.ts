@@ -5,14 +5,14 @@ import {
   LAN_MESSENGER_RESERVED_SHORTCUTS,
   RECOMMENDED_CAPTURE_SHORTCUTS,
   CapturedItem,
-} from '../types/kalmuri';
+} from './types';
 import {
   generateFileName,
   rgbToTColor,
   rgbToWeb,
   rgbToHex,
   buildColorInfo,
-} from '../services/kalmuriEngine';
+} from './kalmuriEngine';
 
 test('validateCaptureShortcut rejects all LAN Messenger reserved shortcuts', () => {
   // Check every reserved shortcut

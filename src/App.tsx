@@ -34,8 +34,8 @@ import {
   LmcCrypto,
 } from './services/cryptoEngine';
 import { ChatWindow } from './components/ChatWindow';
-import { KalmuriCapture } from './components/KalmuriCapture';
-import { CapturedItem } from './types/kalmuri';
+import { KalmuriCapture } from './capture/KalmuriCapture';
+import { CapturedItem } from './capture/types';
 import {
   AboutDialogModal,
   BroadcastWindowModal,
@@ -60,7 +60,6 @@ import {
   validateFeatureUsage,
   UtilityFeatureKey,
   UTILITY_FEATURES_LIST,
-  validateRemoteDesktopPassword,
   isAiAgentProcessAllowed,
   validateAiAgentProcess,
 } from './utils/securityPolicy';
@@ -343,14 +342,8 @@ export function App() {
     requiredIp: string;
   } | null>(null);
 
-  // Remote Desktop request initiator requiring password '192.168.10.212' regardless of IP
-  const handleRequestRemoteDesktop = (target: User) => {
-    if (target.remoteDesktopUnlocked) {
-      setRemoteDesktopPeer(target);
-    } else {
-      setRemoteDesktopAuthTarget(target);
-    }
-  };
+  // Web preview only; native consent and TLS are not simulated as proof of authentication.
+  const handleRequestRemoteDesktop = (target: User) => setRemoteDesktopAuthTarget(target);
 
   // OpenSourceCapture is fully usable by all users without administrative restrictions
   const handleOpenCapture = () => {
@@ -457,11 +450,13 @@ export function App() {
   };
 
   // User-Specific AI Agent Process Toggler (10 Representative AI Agents)
+  const [showLocalUtilities, setShowLocalUtilities] = useState(false);
   const handleToggleAiAgentProcess = (
     targetUser: User,
     agentKey: AiAgentKey,
     nextAllowed: boolean
   ) => {
+    if(targetUser.id !== localUser.id) return;
     const currentBlocks = targetUser.aiAgentBlocks || { ...DEFAULT_AI_AGENT_BLOCKS };
     const updatedBlocks: UserAiAgentBlockMap = {
       ...currentBlocks,
@@ -495,6 +490,7 @@ export function App() {
 
   // User-Specific AI Agent Batch Setter (All Blocked / All Allowed)
   const handleSetAllAiAgentProcesses = (targetUser: User, nextAllowed: boolean) => {
+    if(targetUser.id !== localUser.id) return;
     const updatedBlocks: UserAiAgentBlockMap = {
       autogpt: nextAllowed,
       babyagi: nextAllowed,
@@ -552,10 +548,10 @@ export function App() {
       const isDaemonAllowed = isAiAgentProcessAllowed(localUser, 'claudeComputerUse');
       agentResponse = `[Claude AI 분석 리포트 - LLM Cloud API]\n// 로컬 OS 제어 데몬(claude-computer-use) 구동 상태: ${
         isDaemonAllowed ? '구동 허용(ON)' : '프로세스단 안전 차단(OFF)'
-      }\n상대 노드: ${peer.name} (${peer.address})\n운영체제: ${peer.osVersionDetail || peer.osName}\n암호화 규격: RSA-${peer.rsaBits} + AES-256-CBC\n\n현재 대화 세션은 v1.4.0.4 보안 권한 정책에 따라 정상 인증되었습니다.`;
+      }\n상대 노드: ${peer.name} (${peer.address})\n운영체제: ${peer.osVersionDetail || peer.osName}\n암호화 규격: RSA-${peer.rsaBits} + AES-256-CBC\n\n현재 대화 세션은 v1.4.0.5 보안 권한 정책에 따라 정상 인증되었습니다.`;
     } else if (agentKey === 'googleAgent') {
       agentName = '구글 Agent (Gemini)';
-      agentResponse = `[Google Gemini AI 분석 - Cloud API]\n🌐 LAN Messenger v1.4.0.4 노드 상태: 정상 (${peer.status})\n📡 엔드포인트: ${peer.address}:50000 (${peer.hostName})\n📸 오픈소스캡쳐 및 원격 제어 세션이 준비되었습니다.`;
+      agentResponse = `[Google Gemini AI 분석 - Cloud API]\n🌐 LAN Messenger v1.4.0.5 노드 상태: 정상 (${peer.status})\n📡 엔드포인트: ${peer.address}:50000 (${peer.hostName})\n📸 오픈소스캡쳐 및 원격 제어 세션이 준비되었습니다.`;
     }
 
     const aiMsg: ChatMessage = {
@@ -1664,6 +1660,10 @@ export function App() {
             {/* Dropdown Menu: Tools */}
             {activeMenu === 'tools' && (
               <div className="absolute top-full left-16 z-40 w-56 bg-white border border-gray-400 shadow-lg py-1 text-xs">
+                <details className="px-3 py-1.5"><summary className="cursor-pointer">유틸리티 (내 PC)</summary>
+                  <button className="block py-2" onClick={() => {setShowLocalUtilities(true);setActiveMenu(null);}}>AI Agent 설정...</button>
+                  <button className="block py-2" onClick={() => {handleOpenCapture();setActiveMenu(null);}}>화면 캡처...</button>
+                </details>
                 <button
                   type="button"
                   onClick={() => {
@@ -1718,7 +1718,7 @@ export function App() {
                   className="w-full px-3 py-1.5 text-left hover:bg-[#0054e3] hover:text-white flex items-center gap-2 cursor-pointer font-medium text-blue-900"
                 >
                   <img src="/resources/images/usersettings.png" alt="" className="w-4 h-4" />
-                  <span>내 정보 및 시스템 유틸리티...</span>
+                  <span>내 정보...</span>
                 </button>
                 <div className="my-1 border-t border-gray-200" />
                 <button
@@ -2371,6 +2371,9 @@ export function App() {
         />
       )}
 
+      {showLocalUtilities && <UserInfoWindowModal user={localUser} isSelf utilityOnly language={settings.language}
+        onToggleAiAgentProcess={handleToggleAiAgentProcess} onSetAllAiAgentProcesses={handleSetAllAiAgentProcesses}
+        onClose={() => setShowLocalUtilities(false)} />}
       {inspectingUser && (
         <UserInfoWindowModal
           user={inspectingUser}
@@ -2379,9 +2382,7 @@ export function App() {
           language={settings.language}
           onToggleAiAgentProcess={handleToggleAiAgentProcess}
           onSetAllAiAgentProcesses={handleSetAllAiAgentProcesses}
-          onStartRemoteDesktop={(target) => {
-            setRemoteDesktopPeer(target);
-          }}
+          onStartRemoteDesktop={handleRequestRemoteDesktop}
           onClose={() => setInspectingUser(null)}
         />
       )}

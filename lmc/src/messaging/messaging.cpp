@@ -337,7 +337,6 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
   pMessage->addData(XN_FIRSTNAME, firstName);
   pMessage->addData(XN_LASTNAME, lastName);
   pMessage->addData(XN_ABOUT, about);
-  pMessage->addData(XN_AIAGENTPOLICY, AiAgentBlocker::instance()->serializedPolicy());
 }
 
 bool lmcMessaging::addUser(QString szUserId, QString szVersion, QString szAddress, QString szName, QString szStatus,

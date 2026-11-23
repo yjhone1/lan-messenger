@@ -23,6 +23,9 @@
 
 #include "trace.h"
 #include "crypto.h"
+#include <QCryptographicHash>
+#include <QtEndian>
+#include <limits>
 
 lmcCrypto::lmcCrypto(void) {
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -75,8 +78,6 @@ QByteArray lmcCrypto::getPublicKeyForMode(void) const {
 // Generates both 'Legacy v1.0' (-----BEGIN RSA PUBLIC KEY-----) and 'Strict v3.0'
 // (-----BEGIN PUBLIC KEY-----) representations so the user can toggle modes at runtime.
 QByteArray lmcCrypto::generateRSA(void) {
-  unsigned char buf[256];
-  RAND_seed(buf, sizeof(buf));
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
   if(pRsaKey) {
@@ -183,13 +184,17 @@ QByteArray lmcCrypto::generateAES(QString* lpszUserId, QByteArray& pubKey) {
 
   int keyDataLen = 32;
   unsigned char* keyData = (unsigned char*)malloc(keyDataLen);
-  RAND_bytes(keyData, keyDataLen);
+  if(!keyData || RAND_bytes(keyData, keyDataLen) != 1) { free(keyData); return QByteArray(); }
   int keyLen = 32;
   int ivLen = EVP_CIPHER_iv_length(EVP_aes_256_cbc());
   int keyIvLen = keyLen + ivLen;
   unsigned char* keyIv = (unsigned char*)malloc(keyIvLen);
-  int rounds = 5;
-  keyLen = EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha1(), NULL, keyData, keyDataLen, rounds, keyIv, keyIv + keyLen);
+  if(!keyIv) { free(keyData); return QByteArray(); }
+  if(legacyCompatMode) {
+    keyLen = EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha1(), NULL, keyData, keyDataLen, 5, keyIv, keyIv + keyLen);
+  } else if(RAND_bytes(keyIv, keyIvLen) != 1) {
+    free(keyData); free(keyIv); return QByteArray();
+  }
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
   EVP_PKEY* peerKey = NULL;
@@ -221,10 +226,9 @@ QByteArray lmcCrypto::generateAES(QString* lpszUserId, QByteArray& pubKey) {
 
   if(pctx && EVP_PKEY_encrypt_init(pctx) > 0 &&
      EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING) > 0) {
-    // Always use SHA-1 OAEP digest so both OpenSSL 1.x (hardcoded SHA-1 OAEP) and
-    // OpenSSL 3.x peers can decrypt the 48-byte AES-256 key+IV envelope.
-    EVP_PKEY_CTX_set_rsa_oaep_md(pctx, EVP_sha1());
-    EVP_PKEY_CTX_set_rsa_mgf1_md(pctx, EVP_sha1());
+    const EVP_MD* digest = legacyCompatMode ? EVP_sha1() : EVP_sha256();
+    EVP_PKEY_CTX_set_rsa_oaep_md(pctx, digest);
+    EVP_PKEY_CTX_set_rsa_mgf1_md(pctx, digest);
 
     if(EVP_PKEY_encrypt(pctx, NULL, &outLen, keyIv, keyIvLen) > 0 && outLen > 0) {
       baKeyIv.resize((int)outLen);
@@ -261,7 +265,16 @@ QByteArray lmcCrypto::generateAES(QString* lpszUserId, QByteArray& pubKey) {
   }
 
   unsigned char* eKeyIv = (unsigned char*)malloc(RSA_size(rsa));
-  int eKeyIvLen = RSA_public_encrypt(keyIvLen, keyIv, eKeyIv, rsa, RSA_PKCS1_OAEP_PADDING);
+  int eKeyIvLen = -1;
+  if(legacyCompatMode) {
+    eKeyIvLen = RSA_public_encrypt(keyIvLen, keyIv, eKeyIv, rsa, RSA_PKCS1_OAEP_PADDING);
+  } else {
+    QByteArray padded(RSA_size(rsa), 0);
+    if(RSA_padding_add_PKCS1_OAEP_mgf1(reinterpret_cast<unsigned char*>(padded.data()), padded.size(),
+        keyIv, keyIvLen, nullptr, 0, EVP_sha256(), EVP_sha256()) == 1)
+      eKeyIvLen = RSA_public_encrypt(padded.size(), reinterpret_cast<const unsigned char*>(padded.constData()),
+          eKeyIv, rsa, RSA_NO_PADDING);
+  }
   QByteArray baKeyIv;
   if(eKeyIvLen > 0)
     baKeyIv = QByteArray((char*)eKeyIv, eKeyIvLen);
@@ -277,6 +290,7 @@ QByteArray lmcCrypto::generateAES(QString* lpszUserId, QByteArray& pubKey) {
     EVP_DecryptInit_ex(dctx.ptr(), EVP_aes_256_cbc(), NULL, keyIv, keyIv + keyLen);
     decryptMap.insert(*lpszUserId, dctx);
 
+    initAuthenticatedSession(*lpszUserId, QByteArray((const char*)keyIv, keyLen), true);
     sessionKeyMap.insert(*lpszUserId, QByteArray((const char*)keyIv, keyLen));
     sessionIvMap.insert(*lpszUserId, QByteArray((const char*)(keyIv + keyLen), ivLen));
   }
@@ -308,7 +322,7 @@ void lmcCrypto::retreiveAES(QString* lpszUserId, QByteArray& aesKeyIv) {
   const EVP_MD* fallbackMd = legacyCompatMode ? EVP_sha256() : EVP_sha1();
   const EVP_MD* candidates[2] = { primaryMd, fallbackMd };
 
-  for(int i = 0; i < 2; ++i) {
+  for(int i = 0; i < (legacyCompatMode ? 2 : 1); ++i) {
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new(pRsaKey, NULL);
     size_t outLen = 0;
     if(pctx && EVP_PKEY_decrypt_init(pctx) > 0 &&
@@ -346,6 +360,7 @@ void lmcCrypto::retreiveAES(QString* lpszUserId, QByteArray& aesKeyIv) {
   EVP_DecryptInit_ex(dctx.ptr(), EVP_aes_256_cbc(), NULL, keyIv, keyIv + keyLen);
   decryptMap.insert(*lpszUserId, dctx);
 
+  initAuthenticatedSession(*lpszUserId, QByteArray((const char*)keyIv, keyLen), false);
   sessionKeyMap.insert(*lpszUserId, QByteArray((const char*)keyIv, keyLen));
   sessionIvMap.insert(*lpszUserId, QByteArray((const char*)(keyIv + keyLen), ivLen));
 #else
@@ -353,7 +368,17 @@ void lmcCrypto::retreiveAES(QString* lpszUserId, QByteArray& aesKeyIv) {
     return;
 
   unsigned char* keyIv = (unsigned char*)malloc(RSA_size(pRsa));
-  int decLen = RSA_private_decrypt(aesKeyIv.length(), (unsigned char*)aesKeyIv.data(), keyIv, pRsa, RSA_PKCS1_OAEP_PADDING);
+  int decLen;
+  if(legacyCompatMode) {
+    decLen = RSA_private_decrypt(aesKeyIv.length(), (unsigned char*)aesKeyIv.data(), keyIv, pRsa, RSA_PKCS1_OAEP_PADDING);
+  } else {
+    QByteArray padded(RSA_size(pRsa), 0);
+    int size = RSA_private_decrypt(aesKeyIv.length(), (unsigned char*)aesKeyIv.data(),
+        reinterpret_cast<unsigned char*>(padded.data()), pRsa, RSA_NO_PADDING);
+    decLen = size > 0 ? RSA_padding_check_PKCS1_OAEP_mgf1(keyIv, RSA_size(pRsa),
+        reinterpret_cast<const unsigned char*>(padded.constData()), size, RSA_size(pRsa),
+        nullptr, 0, EVP_sha256(), EVP_sha256()) : -1;
+  }
   if(decLen < expectedLen) {
     lmcTrace::write("Error: Handshake RSA-OAEP decryption failed from " + *lpszUserId);
     free(keyIv);
@@ -366,6 +391,7 @@ void lmcCrypto::retreiveAES(QString* lpszUserId, QByteArray& aesKeyIv) {
   EVP_DecryptInit_ex(dctx.ptr(), EVP_aes_256_cbc(), NULL, keyIv, keyIv + keyLen);
   decryptMap.insert(*lpszUserId, dctx);
 
+  initAuthenticatedSession(*lpszUserId, QByteArray((const char*)keyIv, keyLen), false);
   sessionKeyMap.insert(*lpszUserId, QByteArray((const char*)keyIv, keyLen));
   sessionIvMap.insert(*lpszUserId, QByteArray((const char*)(keyIv + keyLen), ivLen));
 
@@ -377,12 +403,48 @@ bool lmcCrypto::hasSession(QString* lpszUserId) {
   return encryptMap.contains(*lpszUserId);
 }
 
+// Strict sessions use directional keys and monotonically increasing authenticated sequence numbers.
+void lmcCrypto::initAuthenticatedSession(const QString& id, const QByteArray& key, bool initiator) {
+  strictSessions[id] = !legacyCompatMode;
+  const QByteArray c2s = QCryptographicHash::hash(key + "LMC strict client to server", QCryptographicHash::Sha256);
+  const QByteArray s2c = QCryptographicHash::hash(key + "LMC strict server to client", QCryptographicHash::Sha256);
+  sendKeys[id] = initiator ? c2s : s2c;
+  receiveKeys[id] = initiator ? s2c : c2s;
+  sendSequences[id] = 0;
+  receiveSequences[id] = 0;
+}
+
 QByteArray lmcCrypto::encrypt(QString* lpszUserId, QByteArray& clearData) {
   if(!lpszUserId || !encryptMap.contains(*lpszUserId)) {
     lmcTrace::write("Error: No encryption session for peer");
     return QByteArray();
   }
 
+  if(strictSessions.value(*lpszUserId, false)) {
+    quint64& sequence = sendSequences[*lpszUserId];
+    if(sequence == std::numeric_limits<quint64>::max()) return QByteArray();
+    QByteArray header("LMCGCM1", 7);
+    const quint64 wireSequence = qToBigEndian(sequence);
+    header.append(reinterpret_cast<const char*>(&wireSequence), sizeof(wireSequence));
+    QByteArray nonce(12, 0);
+    if(RAND_bytes(reinterpret_cast<unsigned char*>(nonce.data()), nonce.size()) != 1) return QByteArray();
+    header += nonce;
+    EVP_CIPHER_CTX ctx;
+    const QByteArray key = sendKeys.value(*lpszUserId);
+    QByteArray output(clearData.size() + 16, 0), tag(16, 0);
+    int size = 0, finalSize = 0;
+    bool ok = EVP_EncryptInit_ex(ctx.ptr(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) == 1 &&
+        EVP_EncryptInit_ex(ctx.ptr(), nullptr, nullptr, reinterpret_cast<const unsigned char*>(key.constData()),
+            reinterpret_cast<const unsigned char*>(nonce.constData())) == 1 &&
+        EVP_EncryptUpdate(ctx.ptr(), nullptr, &size, reinterpret_cast<const unsigned char*>(header.constData()), header.size()) == 1 &&
+        EVP_EncryptUpdate(ctx.ptr(), reinterpret_cast<unsigned char*>(output.data()), &size,
+            reinterpret_cast<const unsigned char*>(clearData.constData()), clearData.size()) == 1;
+    if(!ok || EVP_EncryptFinal_ex(ctx.ptr(), reinterpret_cast<unsigned char*>(output.data()) + size, &finalSize) != 1 ||
+       EVP_CIPHER_CTX_ctrl(ctx.ptr(), EVP_CTRL_GCM_GET_TAG, tag.size(), tag.data()) != 1) return QByteArray();
+    output.resize(size + finalSize);
+    ++sequence;
+    return header + output + tag;
+  }
   int outLen = clearData.length() + AES_BLOCK_SIZE;
   unsigned char* outBuffer = (unsigned char*)malloc(outLen);
   if(outBuffer == NULL) {
@@ -413,6 +475,27 @@ QByteArray lmcCrypto::decrypt(QString* lpszUserId, QByteArray& cipherData) {
     return QByteArray();
   }
 
+  if(strictSessions.value(*lpszUserId, false)) {
+    if(cipherData.size() < 43 || !cipherData.startsWith("LMCGCM1")) return QByteArray();
+    const quint64 sequence = qFromBigEndian<quint64>(reinterpret_cast<const uchar*>(cipherData.constData() + 7));
+    if(sequence != receiveSequences.value(*lpszUserId) || sequence == std::numeric_limits<quint64>::max()) return QByteArray();
+    const QByteArray key = receiveKeys.value(*lpszUserId);
+    const QByteArray encrypted = cipherData.mid(27, cipherData.size() - 43);
+    QByteArray output(encrypted.size() + 16, 0), tag = cipherData.right(16);
+    EVP_CIPHER_CTX ctx;
+    int size = 0, finalSize = 0;
+    bool ok = EVP_DecryptInit_ex(ctx.ptr(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) == 1 &&
+        EVP_DecryptInit_ex(ctx.ptr(), nullptr, nullptr, reinterpret_cast<const unsigned char*>(key.constData()),
+            reinterpret_cast<const unsigned char*>(cipherData.constData() + 15)) == 1 &&
+        EVP_DecryptUpdate(ctx.ptr(), nullptr, &size, reinterpret_cast<const unsigned char*>(cipherData.constData()), 27) == 1 &&
+        EVP_DecryptUpdate(ctx.ptr(), reinterpret_cast<unsigned char*>(output.data()), &size,
+            reinterpret_cast<const unsigned char*>(encrypted.constData()), encrypted.size()) == 1 &&
+        EVP_CIPHER_CTX_ctrl(ctx.ptr(), EVP_CTRL_GCM_SET_TAG, tag.size(), tag.data()) == 1;
+    if(!ok || EVP_DecryptFinal_ex(ctx.ptr(), reinterpret_cast<unsigned char*>(output.data()) + size, &finalSize) != 1) return QByteArray();
+    output.resize(size + finalSize);
+    receiveSequences[*lpszUserId] = sequence + 1;
+    return output;
+  }
   int outLen = cipherData.length() + AES_BLOCK_SIZE;
   unsigned char* outBuffer = (unsigned char*)malloc(outLen);
   if(outBuffer == NULL) {

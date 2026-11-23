@@ -14,7 +14,7 @@ permissions:
 env:
   QT6_VERSION: '6.6.3'
   QT5_VERSION: '5.15.2'
-  LMC_VERSION: '1.4.0.4'
+  LMC_VERSION: '1.4.0.5'
 
 jobs:
   build-win64:
@@ -241,7 +241,7 @@ jobs:
 
   build-win32:
     name: Build Windows 32-bit (Win7 SP1+ / x86, Qt 5.15.2)
-    runs-on: windows-latest
+    runs-on: windows-2022
     outputs:
       version: ${{ steps.sync_ver.outputs.version }}
 
@@ -288,7 +288,7 @@ jobs:
           $tmpCmd = Join-Path $env:RUNNER_TEMP "load-msvc-x86.cmd"
           @(
             '@echo off'
-            "call `"$devCmd`" -no_logo -arch=x86 -host_arch=x86"
+            "call `"$devCmd`" -no_logo -arch=x86 -host_arch=x86 -vcvars_ver=14.29"
             'if errorlevel 1 exit /b %errorlevel%'
             'echo __LMC_ENV_START__'
             'set'
@@ -316,6 +316,15 @@ jobs:
               }
             }
           }
+
+          $selectedToolset = ($cmdOutput | Where-Object { $_ -match '^VCToolsVersion=' } | Select-Object -First 1) -replace '^VCToolsVersion=', ''
+          if ($selectedToolset -notmatch '^14\.29\.') { throw "Expected MSVC v142/14.29, got '$selectedToolset'" }
+          $legacyCrt = Get-ChildItem -Path "$vsPath/VC/Redist/MSVC" -Directory |
+            Where-Object { $_.Name -like '14.29.*' } | Sort-Object Name -Descending |
+            ForEach-Object { Get-Item -LiteralPath (Join-Path $_.FullName 'x86/Microsoft.VC142.CRT') -ErrorAction SilentlyContinue } |
+            Select-Object -First 1
+          if (-not $legacyCrt) { throw 'Win7-compatible VC142 x86 CRT directory not found.' }
+          "LMC_X86_CRT_DIR=$($legacyCrt.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $clExe = $null
           foreach ($dir in ($postPath -split ';')) {
@@ -346,81 +355,16 @@ jobs:
           setup-python: 'false'
           cache: true
 
-      - name: Cache 32-bit OpenSSL (Win32 Prebuilt)
+      - name: Cache Qt 5 compatible x86 OpenSSL 1.1.1w
         uses: actions/cache@v5
         with:
-          path: C:\OpenSSL-Win32
-          key: win32-openssl-prebuilt-${{ runner.os }}-v1
+          path: build-openssl-x86/install
+          key: openssl-1.1.1w-win32-v142-noasm-v1
 
-      - name: Install 32-bit OpenSSL (Win32 Prebuilt)
+      - name: Build pinned OpenSSL 1.1.1w for Qt 5 TLS
         shell: pwsh
         run: |
-          $opensslRoot = "C:\OpenSSL-Win32"
-          if (-not (Test-Path "$opensslRoot\include\openssl\evp.h")) {
-            $jsonUrl = "https://raw.githubusercontent.com/slproweb/opensslhashes/master/win32_openssl_hashes.json"
-            Write-Host "Fetching Win32 OpenSSL manifest from $jsonUrl"
-            $resp = Invoke-RestMethod -Uri $jsonUrl -TimeoutSec 30
-            $candidates = $resp.files.PSObject.Properties | ForEach-Object { $_.Value } | Where-Object {
-              $_.bits -eq 32 -and $_.installer -eq 'exe' -and (-not $_.light)
-            }
-            $v3Candidates = $candidates | Where-Object { $_.basever -match '^3\.' }
-            $pool = if ($v3Candidates) { $v3Candidates } else { $candidates }
-            $picked = $pool | Sort-Object {
-              $m = [regex]::Match([string]$_.basever, '^\d+\.\d+\.\d+')
-              if ($m.Success) { [version]$m.Value } else { [version]"0.0.0" }
-            } | Select-Object -Last 1
-
-            if (-not $picked -or -not $picked.url) {
-              Write-Error "Could not resolve 32-bit OpenSSL installer URL from win32_openssl_hashes.json"
-              exit 1
-            }
-
-            Write-Host "Downloading 32-bit OpenSSL $($picked.basever)$($picked.subver) from $($picked.url)"
-            $installerPath = Join-Path $env:TEMP "Win32OpenSSL.exe"
-            Invoke-WebRequest -Uri $picked.url -OutFile $installerPath -TimeoutSec 120
-            if ($picked.sha256) {
-              $actualHash = (Get-FileHash -Path $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-              if ($actualHash -ne $picked.sha256.ToLowerInvariant()) {
-                Write-Error "SHA256 mismatch for Win32 OpenSSL installer! Expected $($picked.sha256), got $actualHash"
-                exit 1
-              }
-            }
-
-            $proc = Start-Process -FilePath $installerPath -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$opensslRoot" -Wait -PassThru
-            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-            if ($proc.ExitCode -ne 0) {
-              Write-Error "Win32 OpenSSL installer exited with code $($proc.ExitCode)"
-              exit 1
-            }
-          }
-
-          $incDir = "$opensslRoot\include"
-          if (-not (Test-Path "$incDir\openssl\evp.h")) {
-            Write-Error "OpenSSL header evp.h not found under $incDir"
-            exit 1
-          }
-
-          $cryptoLib = Get-ChildItem -Path "$opensslRoot\lib" -Recurse -File -Include "libcrypto.lib", "libcrypto*MD.lib" |
-            Sort-Object { if ($_.FullName -match '\\VC\\x86\\MD\\') { 0 } elseif ($_.FullName -match '\\MD\\') { 1 } else { 2 } } |
-            Select-Object -First 1
-          $sslLib = Get-ChildItem -Path "$opensslRoot\lib" -Recurse -File -Include "libssl.lib", "libssl*MD.lib" |
-            Sort-Object { if ($_.FullName -match '\\VC\\x86\\MD\\') { 0 } elseif ($_.FullName -match '\\MD\\') { 1 } else { 2 } } |
-            Select-Object -First 1
-          if (-not $cryptoLib -or -not $sslLib) {
-            Write-Error "Could not locate x86 OpenSSL .lib files under $opensslRoot\lib"
-            Get-ChildItem -Path $opensslRoot -Recurse -Filter "*.lib" | Select-Object -ExpandProperty FullName
-            exit 1
-          }
-
-          $binDir = if (Test-Path "$opensslRoot\bin") { "$opensslRoot\bin" } else { $opensslRoot }
-          "OPENSSL_ROOT_DIR=$opensslRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "OPENSSL_INCLUDE_DIR=$incDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "OPENSSL_CRYPTO_LIBRARY=$($cryptoLib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "OPENSSL_SSL_LIBRARY=$($sslLib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "OPENSSL_BIN_DIR=$binDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "OpenSSL x86 root: $opensslRoot"
-          Write-Host "OpenSSL x86 crypto lib: $($cryptoLib.FullName)"
-          Write-Host "OpenSSL x86 bin dir: $binDir"
+          ./tools/ci/build-openssl-win32.ps1 -Prefix "$env:GITHUB_WORKSPACE/build-openssl-x86/install"
 
       - name: Configure CMake (x86 / Win7 Compat)
         shell: pwsh
@@ -456,7 +400,17 @@ jobs:
               }
             }
           }
-          ctest --test-dir build-x86 --output-on-failure -C Release
+          ctest --test-dir build-x86 --output-on-failure --verbose --output-junit "$env:GITHUB_WORKSPACE/build-x86/test-results.xml" -C Release
+
+      - name: Upload x86 test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tests-win32
+          path: |
+            build-x86/Testing/Temporary/LastTest.log
+            build-x86/test-results.xml
+          if-no-files-found: ignore
 
       - name: Stage x86 (Win7+) Release Payload & Portable ZIP
         shell: pwsh
@@ -486,7 +440,7 @@ jobs:
           }
 
           # Keep opengl32sw.dll & d3dcompiler_47.dll for Windows 7 GPU compatibility
-          windeployqt --release "$stageDir/lmc.exe"
+          windeployqt --release --no-compiler-runtime "$stageDir/lmc.exe"
           Remove-Item "$stageDir/vc_redist*.exe" -Force -ErrorAction SilentlyContinue
           if (Test-Path "$stageDir/translations") {
             Copy-Item "$stageDir/translations/qtbase_*.qm" -Destination "$stageDir/lang/system/" -Force -ErrorAction SilentlyContinue
@@ -506,21 +460,9 @@ jobs:
             exit 1
           }
 
-          # Bundle 32-bit MSVC CRT DLLs from VCToolsRedistDir (fallback: SysWOW64)
-          $crtCopied = $false
-          if ($env:VCToolsRedistDir) {
-            $crtDirs = Get-ChildItem -Path "$env:VCToolsRedistDir\x86" -Filter "Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
-            foreach ($cd in $crtDirs) {
-              Get-ChildItem -Path $cd.FullName -Filter "*.dll" | Copy-Item -Destination $stageDir -Force
-              $crtCopied = $true
-            }
-          }
-          if (-not $crtCopied) {
-            foreach ($crt in @("vcruntime140.dll", "msvcp140.dll", "msvcp140_1.dll", "concrt140.dll")) {
-              $crtPath = "$env:SystemRoot\SysWOW64\$crt"
-              if (Test-Path $crtPath) { Copy-Item $crtPath -Destination $stageDir -Force }
-            }
-          }
+          # Use the same VC142 runtime as the compiler. Never pick the runner's newer SysWOW64 CRT.
+          if (-not $env:LMC_X86_CRT_DIR -or -not (Test-Path $env:LMC_X86_CRT_DIR)) { throw 'Missing VC142 x86 runtime.' }
+          Get-ChildItem -Path $env:LMC_X86_CRT_DIR -Filter '*.dll' -File | Copy-Item -Destination $stageDir -Force
 
           # Bundle app-local Universal CRT (Windows 7 KB2999226 fallback) if available in Windows SDK
           $ucrtDir = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\Redist\*\ucrt\DLLs\x86" -Directory -ErrorAction SilentlyContinue |
@@ -567,9 +509,13 @@ jobs:
           Copy-Item "stage-win64/*" -Destination "lmc/release-x64" -Recurse -Force
           Copy-Item "stage-win32/*" -Destination "lmc/release-x86" -Recurse -Force
 
-          # Download official Microsoft VC++ 2015-2022 Redistributables (includes Win7 KB2999226 UCRT inside installer)
-          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x86.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x86.exe"
-          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "lmc/setup/win32/prereqs/vc_redist.x64.exe"
+          # Keep the x86 prerequisite on the VS 2019/VC142 line used for the Win7 compatibility build.
+          # Avoid intermittent .NET HTTP ResponseEnded failures on the CDN.
+          # x86 remains on VC142; x64 follows Microsoft's current v14 permalink.
+          & curl.exe --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 30 --max-time 180 --output "lmc/setup/win32/prereqs/vc_redist.x86.exe" "https://aka.ms/vs/16/release/vc_redist.x86.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download the VC142 x86 prerequisite.' }
+          & curl.exe --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 30 --max-time 180 --output "lmc/setup/win32/prereqs/vc_redist.x64.exe" "https://aka.ms/vc14/vc_redist.x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download the current v14 x64 prerequisite.' }
 
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
@@ -627,6 +573,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: "v${{ env.LMC_VERSION }}"
+          target_commitish: "${{ github.sha }}"
           name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release (32/64-bit Universal)"
           body: |
             Automated Windows Release of LAN Messenger v${{ env.LMC_VERSION }} (32-bit & 64-bit Universal Support).

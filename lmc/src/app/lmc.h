@@ -29,6 +29,7 @@
 #include <QTimer>
 #include <QSysInfo>
 #include <QPointer>
+#include <QSet>
 #include "core/shared.h"
 #include "core/settings.h"
 #include "messaging/messaging.h"
@@ -49,6 +50,7 @@
 #include "remote/remoteserver.h"
 #include "remote/remoteviewerwindow.h"
 #include "security/aiagentblocker.h"
+#include "security/adminauth.h"
 
 class lmcCore : public QObject {
   Q_OBJECT
@@ -87,16 +89,17 @@ private slots:
   void chatWindow_closed(QString* lpszUserId);
   void chatRoomWindow_closed(QString* lpszThreadId);
   void startRemoteDesktop(QString* lpszUserId);
+  void requestAdminDiagnostics(QString* lpszUserId);
   void onViewerClosed(const QString& targetUserId);
-  void sendUtilityPolicy(const QString& targetUserId,
-                         const QString& serializedPolicy,
-                         const QString& password);
   void onAgentProcessBlocked(const QString& agentKey,
                              const QString& agentName,
                              const QString& processName,
                              qint64 pid);
 
 private:
+  void beginAdminAction(const QString& target, const QString& action);
+  void processAdminMessage(MessageType type, QString* peer, XmlMessage* message);
+  QJsonObject adminSnapshot() const;
   void stop(void);
   void loadSettings(void);
   void settingsChanged(void);
@@ -106,7 +109,6 @@ private:
   void routeGroupMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
   void processPublicMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
   void processRemoteMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-  void processUtilityPolicy(QString* lpszUserId, XmlMessage* pMessage);
   void createTransferWindow(void);
   void showTransferWindow(bool show = false);
   void initFileTransfer(MessageType type, FileMode mode, QString* lpszUserId, XmlMessage* pMessage);
@@ -136,6 +138,13 @@ private:
   QPointer<lmcAboutDialog> pAboutDialog;
   QPointer<lmcBroadcastWindow> pBroadcastWindow;
   QPointer<RemoteServer> pRemoteServer;
+  QString remoteHostPeer;
+  AdminAuth m_adminAuth;
+  struct AdminRequest { QString password, action, nonce; QByteArray key; quint64 serial; };
+  QMap<QString, AdminRequest> m_adminRequests;
+  quint64 m_adminSerial = 0;
+  QMap<QString, quint64> pendingRemoteRequests;
+  quint64 remoteRequestSerial = 0;
   QMap<QString, QPointer<RemoteViewerWindow>> remoteViewerWindows;
   bool messageTop;
   bool pubMessagePop;

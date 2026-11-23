@@ -31,6 +31,7 @@
 #include <QByteArray>
 #include <QLibrary>
 #include "remotedefinitions.h"
+#include "remotetls.h"
 
 class RemoteServer : public QObject {
   Q_OBJECT
@@ -41,6 +42,9 @@ public:
 
   bool startServer(quint16 port = 0);
   void stopServer();
+  QByteArray verificationCode() const { return fingerprint().left(16) + m_accessCode; }
+  QByteArray sessionToken() const { return m_token; }
+  QByteArray fingerprint() const { return m_server->fingerprint(); }
   quint16 serverPort() const;
   bool isClientConnected() const;
 
@@ -64,7 +68,10 @@ private:
   void initInputSimulator();
   void cleanupInputSimulator();
 
-  QTcpServer* m_server;
+  RemoteTlsListener* m_server;
+  QByteArray m_token;
+  QByteArray m_accessCode;
+  bool m_authenticated = false;
   QTcpSocket* m_clientSocket;
   QTimer* m_frameTimer;
   QByteArray m_receiveBuffer;

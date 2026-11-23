@@ -1333,6 +1333,10 @@ File may not exist, or may not be compatible with this version of %2.</source>
 
 %1의 설정을 복구할 수 없습니다.</translation>
     </message>
+    <message>
+        <source>Local AI Agent Policy</source>
+        <translation>현재 PC의 AI 에이전트 허용·차단 상태</translation>
+    </message>
 </context>
 <context>
     <name>lmcHelpWindow</name>
@@ -1454,7 +1458,7 @@ File may not exist, or may not be compatible with this version of %2.</source>
         <location filename="mainwindow.cpp" line="847"/>
         <location filename="mainwindow.cpp" line="859"/>
         <source>&amp;History</source>
-        <translation>히스토리(&amp;H)</translation>
+        <translation>대화 기록(&amp;H)</translation>
     </message>
     <message>
         <location filename="mainwindow.cpp" line="848"/>
@@ -1552,6 +1556,30 @@ File may not exist, or may not be compatible with this version of %2.</source>
         <location filename="mainwindow.cpp" line="900"/>
         <source>%1 will continue to run in the background. Activate this icon to restore the application window.</source>
         <translation>%1는 계속 실행중입니다. 창을 복원하려면 아이콘을 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>&amp;Utilities (This PC)</source>
+        <translation>유틸리티 - 현재 PC(&amp;U)</translation>
+    </message>
+    <message>
+        <source>AI Agent Settings...</source>
+        <translation>AI 에이전트 설정...</translation>
+    </message>
+    <message>
+        <source>Administrator Password...</source>
+        <translation>관리자 비밀번호...</translation>
+    </message>
+    <message>
+        <source>Remote &amp;Desktop...</source>
+        <translation>원격 제어(&amp;D)...</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Capture (OpenSourceCapture)...</source>
+        <translation>화면 캡처(&amp;C)...</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Capture (OpenSourceCapture)</source>
+        <translation>화면 캡처(&amp;C)</translation>
     </message>
 </context>
 <context>
@@ -1988,6 +2016,10 @@ LAN Messenger works on essentially every popular desktop platform.</source>
         <source>User Information</source>
         <translation>사용자 정보</translation>
     </message>
+    <message>
+        <source>Read-only operational information. Administrator authentication is required for each refresh.</source>
+        <translation>읽기 전용 운영 정보입니다. 새로고침할 때마다 관리자 인증이 필요합니다.</translation>
+    </message>
 </context>
 <context>
     <name>lmcUserSelectDialog</name>
@@ -1996,5 +2028,247 @@ LAN Messenger works on essentially every popular desktop platform.</source>
         <source>Select Contacts</source>
         <translation>대화상대 선택</translation>
     </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Add AI Agent</source>
+        <translation>AI 에이전트 추가</translation>
+    </message>
+    <message>
+        <source>Edit AI Agent</source>
+        <translation>AI 에이전트 수정</translation>
+    </message>
+    <message>
+        <source>Display name:</source>
+        <translation>표시 이름:</translation>
+    </message>
+    <message>
+        <source>Executable names:</source>
+        <translation>실행 파일명:</translation>
+    </message>
+    <message>
+        <source>Enter exact process executable names, separated by commas. No paths or commands. Find the name in Task Manager &gt; Details. Shared runtimes (python.exe, node.exe), browsers and system processes cannot be added. Saving an entry sets it to Allowed; uncheck it in the list to block.</source>
+        <translation>실제 프로세스의 실행 파일명을 쉼표로 구분해 입력하세요. 경로나 명령어는 입력하지 않습니다. 작업 관리자 → 세부 정보에서 이름을 확인할 수 있습니다. 공용 실행기(python.exe, node.exe), 브라우저, 시스템 프로세스는 추가할 수 없습니다. 저장하면 허용 상태가 됩니다. 차단하려면 목록에서 체크를 해제하세요.</translation>
+    </message>
+    <message>
+        <source>AI Agent</source>
+        <translation>AI 에이전트</translation>
+    </message>
+    <message>
+        <source>Administrator Password</source>
+        <translation>관리자 비밀번호</translation>
+    </message>
+    <message>
+        <source>Set an administrator password in Utilities &gt; Administrator Password before opening AI Agent Settings.</source>
+        <translation>유틸리티 → 관리자 비밀번호에서 비밀번호를 먼저 설정한 뒤 AI 에이전트 설정을 여세요.</translation>
+    </message>
+    <message>
+        <source>Please wait 30 seconds after an incorrect password before trying again.</source>
+        <translation>비밀번호를 잘못 입력했습니다. 오입력 후 30초가 지나면 다시 시도할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Enter this PC's administrator password to open AI Agent Settings:</source>
+        <translation>AI 에이전트 설정을 열려면 이 PC의 관리자 비밀번호를 입력하세요:</translation>
+    </message>
+    <message>
+        <source>Incorrect administrator password.</source>
+        <translation>관리자 비밀번호가 올바르지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Local Utilities - AI Agent Settings</source>
+        <translation>로컬 유틸리티 - AI 에이전트 설정</translation>
+    </message>
+    <message>
+        <source>This PC only. Checked = allowed (default). Unchecked = periodically terminate matching processes while Messenger is running. No system-wide execution ban is installed. Exiting or uninstalling Messenger stops enforcement; terminated processes must be restarted manually.</source>
+        <translation>현재 PC에만 적용됩니다. 체크 = 허용(기본값), 체크 해제 = 차단입니다. 메신저 실행 중 차단 대상 프로세스를 주기적으로 종료합니다. 운영체제 전체의 실행을 금지하는 방식은 아닙니다. 메신저를 종료하거나 삭제하면 감시가 중단됩니다. 이미 종료된 프로그램은 직접 다시 실행해야 합니다.</translation>
+    </message>
+    <message>
+        <source>Set / Change Administrator Password...</source>
+        <translation>관리자 비밀번호 설정 / 변경...</translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation>수정...</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>삭제</translation>
+    </message>
+    <message>
+        <source>Delete AI Agent</source>
+        <translation>AI 에이전트 삭제</translation>
+    </message>
+    <message>
+        <source>Delete %1? Messenger will stop blocking this custom entry.</source>
+        <translation>%1 항목을 삭제하시겠습니까? 이 사용자 지정 항목에 대한 차단이 중단됩니다.</translation>
+    </message>
+    <message>
+        <source>Add Agent...</source>
+        <translation>에이전트 추가...</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <translation>모두 허용</translation>
+    </message>
+    <message>
+        <source>Watching for matching processes. Failures and successful terminations appear in /trace logs.</source>
+        <translation>차단 대상 프로세스를 감시합니다. 종료 성공·실패는 관리자 상태 조회 또는 /trace 로그에서 확인할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Last terminated: %1 (%2), PID %3</source>
+        <translation>최근 종료: %1 (%2), 프로세스 ID %3</translation>
+    </message>
+    <message>
+        <source>Failed to terminate %1 (PID %2): %3</source>
+        <translation>%1 종료 실패 (프로세스 ID %2): %3</translation>
+    </message>
+    <message>
+        <source>Current administrator password:</source>
+        <translation>현재 관리자 비밀번호:</translation>
+    </message>
+    <message>
+        <source>New password (at least 12 characters):</source>
+        <translation>새 비밀번호 (12자 이상):</translation>
+    </message>
+    <message>
+        <source>Confirm new password:</source>
+        <translation>새 비밀번호 확인:</translation>
+    </message>
+    <message>
+        <source>Password change failed. Check the current password and use at least 12 characters.</source>
+        <translation>비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인하고 새 비밀번호를 12자 이상으로 입력하세요.</translation>
+    </message>
+    <message>
+        <source>Saved. Remote requests and diagnostics now require this PC's administrator password.</source>
+        <translation>저장했습니다. AI 에이전트 설정, 원격 제어 요청, 관리자 상태 조회에는 이 PC의 관리자 비밀번호가 필요합니다.</translation>
+    </message>
+</context>
+<context>
+    <name>AiAgentBlocker</name>
+    <message>
+        <source>Enter a name (up to 100 characters) and 1 to 16 executable names.</source>
+        <translation>표시 이름(최대 100자)과 실행 파일명 1~16개를 입력하세요.</translation>
+    </message>
+    <message>
+        <source>Use exact agent executable names, such as myagent.exe. Paths, wildcards, browsers, system processes and shared runtimes are not allowed.</source>
+        <translation>myagent.exe처럼 정확한 실행 파일명을 입력하세요. 경로, 와일드카드, 브라우저, 시스템 프로세스, 공용 실행기는 등록할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Custom agent: exact executable name match.</source>
+        <translation>사용자 지정 에이전트: 실행 파일명이 정확히 일치하는 프로세스를 대상으로 합니다.</translation>
+    </message>
+    <message>
+        <source>Only custom agents can be edited; at most 100 custom agents can be added.</source>
+        <translation>사용자가 추가한 항목만 수정할 수 있으며 최대 100개까지 추가할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>An executable name is already registered by %1.</source>
+        <translation>이 실행 파일명은 이미 %1 항목에 등록되어 있습니다.</translation>
+    </message>
+    <message>
+        <source>Goal-driven autonomous loop, local shell and file-system automation daemon</source>
+        <translation>목표를 수행하며 로컬 명령 실행과 파일 작업을 자동화하는 에이전트</translation>
+    </message>
+    <message>
+        <source>Autonomous task-decomposition and infinite sub-task execution loop</source>
+        <translation>작업을 나누고 하위 작업을 반복 실행하는 자율 에이전트</translation>
+    </message>
+    <message>
+        <source>Autonomous coding engineering agent controlling local terminal and containers</source>
+        <translation>로컬 터미널과 컨테이너를 제어하는 자율 코딩 에이전트</translation>
+    </message>
+    <message>
+        <source>Multi-agent orchestration driving local code generation and compilation</source>
+        <translation>여러 에이전트를 조율해 코드 생성과 컴파일을 수행하는 도구</translation>
+    </message>
+    <message>
+        <source>Role-based multi-agent orchestration executing local Python/shell tools</source>
+        <translation>역할별 에이전트를 조율해 로컬 Python 및 명령 도구를 실행하는 도구</translation>
+    </message>
+    <message>
+        <source>Multi-agent conversation engine with local automated Code Executor</source>
+        <translation>로컬 코드 자동 실행 기능이 있는 다중 에이전트 대화 도구</translation>
+    </message>
+    <message>
+        <source>Autonomous OS GUI agent with screen capture, mouse click, and keyboard control</source>
+        <translation>화면 캡처, 마우스 클릭, 키보드 입력으로 운영체제 화면을 제어하는 에이전트</translation>
+    </message>
+    <message>
+        <source>Browser/local development autonomous control agent and Codex runner</source>
+        <translation>브라우저 및 로컬 개발 환경을 자동 제어하는 에이전트와 Codex 실행기</translation>
+    </message>
+    <message>
+        <source>Autonomous goal-execution daemon spawning local child processes</source>
+        <translation>로컬 하위 프로세스를 실행하며 목표를 수행하는 자율 에이전트</translation>
+    </message>
+    <message>
+        <source>Virtual software company agent invoking local compilers and test runners</source>
+        <translation>로컬 컴파일러와 테스트 도구를 실행하는 소프트웨어 개발 에이전트</translation>
+    </message>
+    <message>
+        <source>Terminal-based open-source autonomous coding agent modifying files &amp; running shell commands</source>
+        <translation>터미널에서 파일 수정과 명령 실행을 수행하는 오픈소스 자율 코딩 에이전트</translation>
+    </message>
+</context>
+<context>
+    <name>QPlatformTheme</name>
+    <message><source>Save</source><translation>저장</translation></message>
+    <message><source>&amp;Save</source><translation>저장</translation></message>
+    <message><source>Cancel</source><translation>취소</translation></message>
+    <message><source>&amp;Cancel</source><translation>취소</translation></message>
+    <message><source>Close</source><translation>닫기</translation></message>
+    <message><source>&amp;Close</source><translation>닫기</translation></message>
+    <message><source>Yes</source><translation>예</translation></message>
+    <message><source>&amp;Yes</source><translation>예</translation></message>
+    <message><source>No</source><translation>아니요</translation></message>
+    <message><source>&amp;No</source><translation>아니요</translation></message>
+    <message><source>OK</source><translation>확인</translation></message>
+    <message><source>&amp;OK</source><translation>확인</translation></message>
+</context>
+<context>
+    <name>QDialogButtonBox</name>
+    <message><source>Save</source><translation>저장</translation></message>
+    <message><source>&amp;Save</source><translation>저장</translation></message>
+    <message><source>Cancel</source><translation>취소</translation></message>
+    <message><source>&amp;Cancel</source><translation>취소</translation></message>
+    <message><source>Close</source><translation>닫기</translation></message>
+    <message><source>&amp;Close</source><translation>닫기</translation></message>
+    <message><source>Yes</source><translation>예</translation></message>
+    <message><source>&amp;Yes</source><translation>예</translation></message>
+    <message><source>No</source><translation>아니요</translation></message>
+    <message><source>&amp;No</source><translation>아니요</translation></message>
+    <message><source>OK</source><translation>확인</translation></message>
+    <message><source>&amp;OK</source><translation>확인</translation></message>
+</context>
+<context>
+    <name>QMessageBox</name>
+    <message><source>Save</source><translation>저장</translation></message>
+    <message><source>&amp;Save</source><translation>저장</translation></message>
+    <message><source>Cancel</source><translation>취소</translation></message>
+    <message><source>&amp;Cancel</source><translation>취소</translation></message>
+    <message><source>Close</source><translation>닫기</translation></message>
+    <message><source>&amp;Close</source><translation>닫기</translation></message>
+    <message><source>Yes</source><translation>예</translation></message>
+    <message><source>&amp;Yes</source><translation>예</translation></message>
+    <message><source>No</source><translation>아니요</translation></message>
+    <message><source>&amp;No</source><translation>아니요</translation></message>
+    <message><source>OK</source><translation>확인</translation></message>
+    <message><source>&amp;OK</source><translation>확인</translation></message>
+</context>
+<context>
+    <name>QInputDialog</name>
+    <message><source>Save</source><translation>저장</translation></message>
+    <message><source>&amp;Save</source><translation>저장</translation></message>
+    <message><source>Cancel</source><translation>취소</translation></message>
+    <message><source>&amp;Cancel</source><translation>취소</translation></message>
+    <message><source>Close</source><translation>닫기</translation></message>
+    <message><source>&amp;Close</source><translation>닫기</translation></message>
+    <message><source>Yes</source><translation>예</translation></message>
+    <message><source>&amp;Yes</source><translation>예</translation></message>
+    <message><source>No</source><translation>아니요</translation></message>
+    <message><source>&amp;No</source><translation>아니요</translation></message>
+    <message><source>OK</source><translation>확인</translation></message>
+    <message><source>&amp;OK</source><translation>확인</translation></message>
 </context>
 </TS>

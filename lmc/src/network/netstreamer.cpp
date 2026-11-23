@@ -386,8 +386,7 @@ void MsgStream::sendMessage(QByteArray& data) {
 }
 
 void MsgStream::connected(void) {
-  outData = localId.toLocal8Bit();
-  outData.insert(0, "MSG"); // insert indicator that this socket handles messages
+  outData = property("strictProtocol").toBool() ? QByteArray("MSG2\n") + localId.toUtf8() + "\n" : QByteArray("MSG") + localId.toLocal8Bit(); // insert indicator that this socket handles messages
   outDataLen = outData.length();
 
   //	send an id message and then wait for public key message
@@ -412,6 +411,7 @@ void MsgStream::readyRead(void) {
       QDataStream stream(len);
       stream.setVersion(QDataStream::Qt_5_15);
       stream >> inDataLen;
+      if(inDataLen < 6 || inDataLen > 16 * 1024 * 1024) { socket->abort(); return; }
       inData.clear();
       QByteArray data = socket->read(inDataLen);
       inData.append(data);

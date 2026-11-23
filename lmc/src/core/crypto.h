@@ -95,6 +95,7 @@ public:
   QByteArray generateAES(QString* lpszUserId, QByteArray& pubKey);
   void retreiveAES(QString* lpszUserId, QByteArray& aesKeyIv);
   bool hasSession(QString* lpszUserId);
+  bool isLegacySession(const QString& id) const { return !strictSessions.value(id, false); }
   QByteArray encrypt(QString* lpszUserId, QByteArray& clearData);
   QByteArray decrypt(QString* lpszUserId, QByteArray& cipherData);
 
@@ -118,6 +119,10 @@ private:
   QMap<QString, EVP_CIPHER_CTX> decryptMap;
   QMap<QString, QByteArray> sessionKeyMap;
   QMap<QString, QByteArray> sessionIvMap;
+  QMap<QString, bool> strictSessions;
+  QMap<QString, QByteArray> sendKeys, receiveKeys;
+  QMap<QString, quint64> sendSequences, receiveSequences;
+  void initAuthenticatedSession(const QString& id, const QByteArray& key, bool initiator);
   int bits;
   long exponent;
   bool legacyCompatMode;

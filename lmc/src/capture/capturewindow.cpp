@@ -240,7 +240,7 @@ void lmcCaptureWindow::onCaptureButtonClicked() {
 }
 
 void lmcCaptureWindow::triggerCapture() {
-  // Always allowed in v1.4.0.4 upon installation
+  // Always allowed in v1.4.0.5 upon installation
 
   // Hide main floating bar briefly if capturing full screen or active window
   if (m_area == CA_FullScreen || m_area == CA_ActiveWindow) {

@@ -22,12 +22,16 @@
 ****************************************************************************/
 
 #include "remoteserver.h"
+#include "security/adminaudit.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QPixmap>
 #include <QBuffer>
 #include <QCursor>
 #include <QDebug>
+#include <QCryptographicHash>
+#include <openssl/rand.h>
+#include <openssl/crypto.h>
 
 #ifdef Q_OS_LINUX
 typedef void* (*pfn_XOpenDisplay)(const char*);
@@ -49,7 +53,7 @@ static pfn_XKeysymToKeycode s_XKeysymToKeycode = nullptr;
 
 RemoteServer::RemoteServer(QObject* parent)
   : QObject(parent),
-    m_server(new QTcpServer(this)),
+    m_server(new RemoteTlsListener(this)),
     m_clientSocket(nullptr),
     m_frameTimer(new QTimer(this)),
     m_jpegQuality(65),
@@ -107,6 +111,11 @@ void RemoteServer::cleanupInputSimulator() {
 
 bool RemoteServer::startServer(quint16 port) {
   stopServer();
+  QByteArray secret(8, 0);
+  if(RAND_bytes(reinterpret_cast<unsigned char*>(secret.data()), secret.size()) != 1 ||
+     !m_server->createIdentity()) return false;
+  m_accessCode = secret.toHex();
+  m_token = QCryptographicHash::hash(m_accessCode + fingerprint(), QCryptographicHash::Sha256);
   if(!m_server->listen(QHostAddress::Any, port)) {
     qWarning() << "RemoteServer: Failed to listen on port" << port << m_server->errorString();
     return false;
@@ -115,17 +124,24 @@ bool RemoteServer::startServer(quint16 port) {
 }
 
 void RemoteServer::stopServer() {
+  const bool wasActive = m_server->isListening() || m_clientSocket || !m_token.isEmpty();
   m_frameTimer->stop();
+  m_authenticated = false;
+  m_token.clear();
+  m_accessCode.clear();
   if(m_clientSocket) {
     // Send close packet
     sendPacket(REMOTE_PKT_CLOSE, QByteArray());
-    m_clientSocket->disconnectFromHost();
+    QTcpSocket* oldSocket = m_clientSocket;
     m_clientSocket = nullptr;
+    disconnect(oldSocket, nullptr, this, nullptr);
+    oldSocket->disconnectFromHost();
+    oldSocket->deleteLater();
   }
   if(m_server->isListening()) {
     m_server->close();
-    emit serverStopped();
   }
+  if(wasActive) emit serverStopped();
 }
 
 quint16 RemoteServer::serverPort() const {
@@ -133,7 +149,7 @@ quint16 RemoteServer::serverPort() const {
 }
 
 bool RemoteServer::isClientConnected() const {
-  return (m_clientSocket != nullptr && m_clientSocket->state() == QAbstractSocket::ConnectedState);
+  return (m_authenticated && m_clientSocket != nullptr && m_clientSocket->state() == QAbstractSocket::ConnectedState);
 }
 
 void RemoteServer::onNewConnection() {
@@ -141,8 +157,6 @@ void RemoteServer::onNewConnection() {
   if(!newSocket)
     return;
 
-  // Remote desktop access is controlled via password authentication (192.168.10.212)
-  // and user consent regardless of the requester IP address.
   if(m_clientSocket) {
     // Only allow one viewer at a time
     newSocket->disconnectFromHost();
@@ -152,36 +166,29 @@ void RemoteServer::onNewConnection() {
 
   m_clientSocket = newSocket;
   m_receiveBuffer.clear();
+  m_authenticated = false;
+  QTcpSocket* pending = m_clientSocket;
+  QTimer::singleShot(5000, pending, [this, pending] {
+    if(m_clientSocket == pending && !m_authenticated) pending->abort();
+  });
 
   connect(m_clientSocket, &QTcpSocket::disconnected, this, &RemoteServer::onClientDisconnected);
   connect(m_clientSocket, &QTcpSocket::readyRead, this, &RemoteServer::onReadyRead);
 
-  // Send screen init info
-  QScreen* screen = QGuiApplication::primaryScreen();
-  if(screen) {
-    QSize screenSize = screen->size();
-    RemoteInitPayload initPayload;
-    initPayload.screenWidth = screenSize.width();
-    initPayload.screenHeight = screenSize.height();
-
-    QByteArray payloadData(reinterpret_cast<const char*>(&initPayload), sizeof(initPayload));
-    sendPacket(REMOTE_PKT_INIT, payloadData);
-  }
-
-  // Start frame streaming timer
-  m_frameTimer->start(m_frameIntervalMs);
-
-  emit clientConnected(m_clientSocket->peerAddress().toString());
+  // No pixels or input are accepted before TLS and the one-time secret are verified.
 }
 
 void RemoteServer::onClientDisconnected() {
+  if(sender() != m_clientSocket) return;
   m_frameTimer->stop();
+  m_authenticated = false;
   m_receiveBuffer.clear();
   if(m_clientSocket) {
     m_clientSocket->deleteLater();
     m_clientSocket = nullptr;
   }
   emit clientDisconnected();
+  if(!m_server->isListening()) stopServer();
 }
 
 void RemoteServer::captureAndSendFrame() {
@@ -237,7 +244,10 @@ void RemoteServer::onReadyRead() {
   if(!m_clientSocket)
     return;
 
+  auto* tls = qobject_cast<QSslSocket*>(m_clientSocket);
+  if(!tls || !tls->isEncrypted()) return;
   m_receiveBuffer.append(m_clientSocket->readAll());
+  if(m_receiveBuffer.size() > REMOTE_MAX_PAYLOAD + sizeof(RemotePacketHeader)) { m_clientSocket->abort(); return; }
 
   while(m_receiveBuffer.size() >= (int)sizeof(RemotePacketHeader)) {
     const RemotePacketHeader* pHeader = reinterpret_cast<const RemotePacketHeader*>(m_receiveBuffer.constData());
@@ -247,6 +257,7 @@ void RemoteServer::onReadyRead() {
       continue;
     }
 
+    if(pHeader->payloadSize > REMOTE_MAX_PAYLOAD) { m_clientSocket->abort(); return; }
     int totalSize = sizeof(RemotePacketHeader) + pHeader->payloadSize;
     if(m_receiveBuffer.size() < totalSize) {
       // Need more data
@@ -258,10 +269,31 @@ void RemoteServer::onReadyRead() {
     m_receiveBuffer.remove(0, totalSize);
 
     processPacket(type, payload);
+    if(!m_clientSocket || m_clientSocket->state() != QAbstractSocket::ConnectedState) return;
   }
 }
 
 void RemoteServer::processPacket(quint8 type, const QByteArray& payload) {
+  if(!m_authenticated) {
+    if(type != REMOTE_PKT_AUTH || m_token.size() != 32 || payload.size() != m_token.size() ||
+       CRYPTO_memcmp(payload.constData(), m_token.constData(), size_t(m_token.size())) != 0) {
+      m_clientSocket->abort();
+      return;
+    }
+    m_authenticated = true;
+    AdminAudit::record("remote", "authorized", "Remote TLS token verified; screen sharing started");
+    m_token.clear();
+    m_accessCode.clear(); // One-use capability. Stop accepting further connections for this approval.
+    m_server->close();
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if(screen) {
+      RemoteInitPayload init{quint32(screen->size().width()), quint32(screen->size().height())};
+      sendPacket(REMOTE_PKT_INIT, QByteArray(reinterpret_cast<const char*>(&init), sizeof(init)));
+    }
+    m_frameTimer->start(m_frameIntervalMs);
+    emit clientConnected(m_clientSocket->peerAddress().toString());
+    return;
+  }
   switch(type) {
   case REMOTE_PKT_MOUSE:
     if(payload.size() >= (int)sizeof(RemoteMousePayload)) {

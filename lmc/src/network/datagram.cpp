@@ -27,10 +27,7 @@
 #include "datagram.h"
 
 void Datagram::addHeader(DatagramType type, QByteArray& baData, bool legacyCompat) {
-  Q_UNUSED(legacyCompat);
-  // Always use the canonical 6-byte wire header ("BRDCST", "PUBKEY", "HNDSHK", "MESSAG")
-  // so both OpenSSL 1.x and OpenSSL 3.x peers recognize the frame regardless of UI mode.
-  QByteArray datagramType = DatagramTypeNames[type].toLatin1();
+  QByteArray datagramType = (legacyCompat ? DatagramTypeNames[type] : DatagramTypeNamesV3[type]).toLatin1();
   baData.insert(0, datagramType);
 }
 

@@ -68,6 +68,7 @@ public:
   bool groupMode;
 
 signals:
+  void protocolModeChanged();
   void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
   void showHistory(void);
   void showTransfers(void);
