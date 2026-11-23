@@ -14,7 +14,7 @@ permissions:
 env:
   QT6_VERSION: '6.6.3'
   QT5_VERSION: '5.15.2'
-  LMC_VERSION: '1.4.0.4'
+  LMC_VERSION: '1.4.0.5'
 
 jobs:
   build-win64:
@@ -573,6 +573,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: "v${{ env.LMC_VERSION }}"
+          target_commitish: "${{ github.sha }}"
           name: "LAN Messenger v${{ env.LMC_VERSION }} Windows Release (32/64-bit Universal)"
           body: |
             Automated Windows Release of LAN Messenger v${{ env.LMC_VERSION }} (32-bit & 64-bit Universal Support).

@@ -1,4 +1,4 @@
-# LAN Messenger 1.4.0.4
+# LAN Messenger 1.4.0.5
 
 서버 없이 LAN에서 동작하는 C++17 / Qt 5·6 메신저와 React 웹 시뮬레이터입니다.
 

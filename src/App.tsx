@@ -548,10 +548,10 @@ export function App() {
       const isDaemonAllowed = isAiAgentProcessAllowed(localUser, 'claudeComputerUse');
       agentResponse = `[Claude AI 분석 리포트 - LLM Cloud API]\n// 로컬 OS 제어 데몬(claude-computer-use) 구동 상태: ${
         isDaemonAllowed ? '구동 허용(ON)' : '프로세스단 안전 차단(OFF)'
-      }\n상대 노드: ${peer.name} (${peer.address})\n운영체제: ${peer.osVersionDetail || peer.osName}\n암호화 규격: RSA-${peer.rsaBits} + AES-256-CBC\n\n현재 대화 세션은 v1.4.0.4 보안 권한 정책에 따라 정상 인증되었습니다.`;
+      }\n상대 노드: ${peer.name} (${peer.address})\n운영체제: ${peer.osVersionDetail || peer.osName}\n암호화 규격: RSA-${peer.rsaBits} + AES-256-CBC\n\n현재 대화 세션은 v1.4.0.5 보안 권한 정책에 따라 정상 인증되었습니다.`;
     } else if (agentKey === 'googleAgent') {
       agentName = '구글 Agent (Gemini)';
-      agentResponse = `[Google Gemini AI 분석 - Cloud API]\n🌐 LAN Messenger v1.4.0.4 노드 상태: 정상 (${peer.status})\n📡 엔드포인트: ${peer.address}:50000 (${peer.hostName})\n📸 오픈소스캡쳐 및 원격 제어 세션이 준비되었습니다.`;
+      agentResponse = `[Google Gemini AI 분석 - Cloud API]\n🌐 LAN Messenger v1.4.0.5 노드 상태: 정상 (${peer.status})\n📡 엔드포인트: ${peer.address}:50000 (${peer.hostName})\n📸 오픈소스캡쳐 및 원격 제어 세션이 준비되었습니다.`;
     }
 
     const aiMsg: ChatMessage = {

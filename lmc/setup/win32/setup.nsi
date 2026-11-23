@@ -21,10 +21,10 @@ SetCompressor /SOLID lzma
   !define ProductName "LAN Messenger"
   !define CompanyName "LAN Messenger"
   !ifndef ProductVersion
-    !define ProductVersion "1.4.0.4"
+    !define ProductVersion "1.4.0.5"
   !endif
   !ifndef InstallerVersion
-    !define InstallerVersion "1.4.0.4"
+    !define InstallerVersion "1.4.0.5"
   !endif
   !ifndef UniversalBuild
     !define UniversalBuild 0
