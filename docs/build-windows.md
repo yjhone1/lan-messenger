@@ -39,6 +39,11 @@ The `remote` test reports Qt's TLS build/runtime versions and fails explicitly
 if the backend is unavailable. CI saves the detailed CTest log and JUnit report
 as the `tests-win32` artifact even when tests fail.
 
+The OpenSSL cache is optional. Pull-request builds restore it without attempting
+to save, because their tokens may have no writable cache scope. Only successful
+OpenSSL builds on `master`/`main` push or manual runs save a missing cache.
+A cache miss still builds the pinned source; no additional token permissions are needed.
+
 ## Build
 
 The build is driven by CMake; the binaries are written to the build

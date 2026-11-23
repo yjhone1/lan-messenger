@@ -355,8 +355,10 @@ jobs:
           setup-python: 'false'
           cache: true
 
-      - name: Cache Qt 5 compatible x86 OpenSSL 1.1.1w
-        uses: actions/cache@v5
+      # PR tokens may restore caches but have no writable cache scope.
+      - name: Restore Qt 5 compatible x86 OpenSSL 1.1.1w
+        id: openssl_cache
+        uses: actions/cache/restore@v5
         with:
           path: build-openssl-x86/install
           key: openssl-1.1.1w-win32-v142-noasm-v1
@@ -365,6 +367,16 @@ jobs:
         shell: pwsh
         run: |
           ./tools/ci/build-openssl-win32.ps1 -Prefix "$env:GITHUB_WORKSPACE/build-openssl-x86/install"
+
+      - name: Save Qt 5 compatible x86 OpenSSL 1.1.1w
+        if: >-
+          steps.openssl_cache.outputs.cache-hit != 'true' &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+        uses: actions/cache/save@v5
+        with:
+          path: build-openssl-x86/install
+          key: ${{ steps.openssl_cache.outputs.cache-primary-key }}
 
       - name: Configure CMake (x86 / Win7 Compat)
         shell: pwsh
