@@ -18,6 +18,7 @@
 
 class tst_Security : public QObject {
   Q_OBJECT
+  QString settingsRoot;
 
 private slots:
   void initTestCase();
@@ -28,6 +29,7 @@ private slots:
   void policySerializationRoundTrip();
   void processMatchingDetectsBlockedAgentsAndAllowsBrowsers();
   void captureIsAlwaysEnabledUponInstall();
+  void customAgentLifecycleAndValidation();
 };
 
 void tst_Security::specsContainElevenAgentsIncludingOpenCode() {
@@ -97,9 +99,56 @@ void tst_Security::captureIsAlwaysEnabledUponInstall() {
   QVERIFY(lmcCaptureWindow::isUserCaptureEnabled(QStringLiteral("peer-any")));
 }
 
+void tst_Security::customAgentLifecycleAndValidation() {
+  auto* blocker = AiAgentBlocker::instance();
+  const int original = AiAgentBlocker::specs().size();
+  QString error;
+  QVERIFY(!blocker->saveCustomAgent({}, "", {"myagent.exe"}, &error));
+  for(const QString& invalid : {"python.exe", "node.exe", "svchost.exe", "chrome.exe", "lmc.exe", "*.exe", "C:/myagent.exe", "myagent.exe --run", ""})
+    QVERIFY2(!blocker->saveCustomAgent({}, "Invalid", {invalid}, &error), qPrintable(invalid));
+  QVERIFY(!blocker->saveCustomAgent({}, "Duplicate", {"opencode.exe"}, &error));
+  QVERIFY(blocker->saveCustomAgent({}, "My Agent", {" MyAgent-Test.EXE ", "myagent-test-cli"}, &error));
+  const QString key = AiAgentBlocker::specs().last().key;
+  QVERIFY(AiAgentBlocker::isCustomAgent(key));
+  QCOMPARE(AiAgentBlocker::specs().size(), original + 1);
+  QVERIFY(blocker->isAllowed(key));
+  auto policy = blocker->policy();
+  policy[key] = false; // Match only; do not terminate any host processes in tests.
+  QCOMPARE(AiAgentBlocker::matchBlockedAgentKey("MYAGENT-TEST.EXE", {}, policy), key);
+  QVERIFY(AiAgentBlocker::matchBlockedAgentKey("other-myagent-test.exe", {}, policy).isEmpty());
+  QCOMPARE(AiAgentBlocker::deserializePolicy(AiAgentBlocker::serializePolicy(policy)).value(key), false);
+  QVERIFY(!blocker->saveCustomAgent({}, "Duplicate", {"myagent-test.exe"}, &error));
+  QVERIFY(!blocker->saveCustomAgent("opencode", "Override", {"override.exe"}, &error));
+  QVERIFY(!blocker->removeCustomAgent("opencode"));
+  QVERIFY(blocker->saveCustomAgent(key, "Renamed Agent", {"renamed-test-agent.exe"}, &error));
+  QVERIFY(blocker->isAllowed(key));
+  policy[key] = false;
+  QVERIFY(AiAgentBlocker::matchBlockedAgentKey("myagent-test.exe", {}, policy).isEmpty());
+  QCOMPARE(AiAgentBlocker::matchBlockedAgentKey("renamed-test-agent.exe", {}, policy), key);
+  lmcSettings saved;
+  const auto json = saved.value("Security/CustomAiAgents").toByteArray();
+  QVERIFY(json.contains(key.toUtf8()));
+  QVERIFY(json.contains("renamed-test-agent.exe"));
+  saved.setValue(QStringLiteral(IDS_AIAGENT_GROUP "/") + key, false);
+  saved.sync();
+  QProcess restarted;
+  restarted.start(QCoreApplication::applicationFilePath(), {"--custom-agent-reload", settingsRoot, key});
+  QVERIFY(restarted.waitForFinished(15000));
+  QCOMPARE(restarted.exitStatus(), QProcess::NormalExit);
+  QCOMPARE(restarted.exitCode(), 0);
+  QVERIFY(blocker->removeCustomAgent(key));
+  QCOMPARE(AiAgentBlocker::specs().size(), original);
+  QVERIFY(!blocker->policy().contains(key));
+  lmcSettings removed;
+  QVERIFY(!removed.value("Security/CustomAiAgents").toByteArray().contains(key.toUtf8()));
+  QVERIFY(!removed.contains(QStringLiteral(IDS_AIAGENT_GROUP "/") + key));
+  QVERIFY(AiAgentBlocker::matchBlockedAgentKey("renamed-test-agent.exe", {}, policy).isEmpty());
+}
+
 void tst_Security::initTestCase() {
   static QTemporaryDir isolatedSettings;
   QVERIFY(isolatedSettings.isValid());
+  settingsRoot = isolatedSettings.path();
   QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, isolatedSettings.path());
 }
 
@@ -147,6 +196,14 @@ void tst_Security::enforcementStopsWhenMessengerStops() {
 }
 
 int main(int argc, char** argv) {
+  if(argc == 4 && QByteArray(argv[1]) == "--custom-agent-reload") {
+    QCoreApplication application(argc, argv);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, QString::fromLocal8Bit(argv[2]));
+    const QString key = QString::fromLocal8Bit(argv[3]);
+    auto* blocker = AiAgentBlocker::instance();
+    return AiAgentBlocker::isCustomAgent(key) && !blocker->isAllowed(key) &&
+        AiAgentBlocker::matchBlockedAgentKey("renamed-test-agent.exe", {}, blocker->policy()) == key ? 0 : 1;
+  }
 #ifdef Q_OS_LINUX
   if(argc == 2 && QByteArray(argv[1]) == "--agent-fixture") {
     QCoreApplication fixture(argc, argv);

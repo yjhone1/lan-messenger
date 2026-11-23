@@ -15,6 +15,47 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QFormLayout>
+#include <QRegularExpression>
+
+namespace {
+void editCustomAgent(QWidget* parent, const AiAgentSpec& existing = {}) {
+  QDialog editor(parent);
+  editor.setWindowTitle(existing.key.isEmpty() ? QObject::tr("Add AI Agent") : QObject::tr("Edit AI Agent"));
+  auto* layout = new QVBoxLayout(&editor);
+  auto* form = new QFormLayout;
+  auto* name = new QLineEdit(existing.name, &editor);
+  name->setObjectName("customAgentName");
+  name->setMaxLength(100);
+  auto* executables = new QLineEdit(existing.matchExecutables.join(", "), &editor);
+  executables->setObjectName("customAgentExecutables");
+  executables->setPlaceholderText("myagent.exe, myagent-cli.exe");
+  form->addRow(QObject::tr("Display name:"), name);
+  form->addRow(QObject::tr("Executable names:"), executables);
+  layout->addLayout(form);
+  auto* help = new QLabel(QObject::tr("Enter exact process executable names, separated by commas. No paths or commands. "
+      "Find the name in Task Manager > Details. Shared runtimes (python.exe, node.exe), browsers and system processes cannot be added. "
+      "Saving an entry sets it to Allowed; uncheck it in the list to block."), &editor);
+  help->setWordWrap(true);
+  layout->addWidget(help);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &editor);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &editor, &QDialog::reject);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &editor, [&] {
+    QString error;
+    if(!AiAgentBlocker::instance()->saveCustomAgent(existing.key, name->text(),
+          executables->text().split(QRegularExpression("[,;\\n]"), Qt::KeepEmptyParts), &error)) {
+      QMessageBox::warning(&editor, QObject::tr("AI Agent"), error);
+      return;
+    }
+    AdminAudit::record("agents", "configuration", existing.key.isEmpty() ? "Custom agent added locally" : "Custom agent updated locally");
+    editor.accept();
+  });
+  layout->addWidget(buttons);
+  editor.resize(560, 280);
+  editor.exec();
+}
+}
 
 void showLocalUtilityDialog(QWidget* parent) {
   if(!AdminAuth::configured()) {
@@ -60,24 +101,54 @@ void showLocalUtilityDialog(QWidget* parent) {
   auto* rows = new QWidget(scroll);
   auto* rowLayout = new QVBoxLayout(rows);
   auto* blocker = AiAgentBlocker::instance();
-  for(const auto& spec : AiAgentBlocker::specs()) {
-    auto* check = new QCheckBox(spec.name + " (" + spec.processBinary + ")", rows);
-    check->setObjectName("agent-" + spec.key);
-    check->setToolTip(spec.description);
-    check->setChecked(blocker->isAllowed(spec.key));
-    QObject::connect(check, &QCheckBox::toggled, blocker, [blocker, key = spec.key](bool allowed) {
-      blocker->setAgentAllowed(key, allowed);
-    });
-    QObject::connect(blocker, &AiAgentBlocker::policyChanged, check,
-                     [check, key = spec.key](const QMap<QString, bool>& policy) {
-      QSignalBlocker guard(check);
-      check->setChecked(policy.value(key, true));
-    });
-    rowLayout->addWidget(check);
-  }
-  rowLayout->addStretch();
+  const auto rebuildRows = [rows, rowLayout, blocker, dialog] {
+    while(auto* item = rowLayout->takeAt(0)) {
+      delete item->widget();
+      delete item;
+    }
+    for(const auto& spec : AiAgentBlocker::specs()) {
+      auto* row = new QWidget(rows);
+      auto* line = new QHBoxLayout(row);
+      line->setContentsMargins(0, 0, 0, 0);
+      auto* check = new QCheckBox(spec.name + " (" + spec.processBinary + ")", row);
+      check->setObjectName("agent-" + spec.key);
+      check->setToolTip(spec.description);
+      check->setChecked(blocker->isAllowed(spec.key));
+      QObject::connect(check, &QCheckBox::toggled, blocker, [blocker, key = spec.key](bool allowed) {
+        blocker->setAgentAllowed(key, allowed);
+      });
+      QObject::connect(blocker, &AiAgentBlocker::policyChanged, check,
+                       [check, key = spec.key](const QMap<QString, bool>& policy) {
+        QSignalBlocker guard(check);
+        check->setChecked(policy.value(key, true));
+      });
+      line->addWidget(check, 1);
+      if(AiAgentBlocker::isCustomAgent(spec.key)) {
+        auto* edit = new QPushButton(QObject::tr("Edit..."), row);
+        edit->setObjectName("edit-" + spec.key);
+        QObject::connect(edit, &QPushButton::clicked, dialog, [dialog, spec] { editCustomAgent(dialog, spec); });
+        line->addWidget(edit);
+        auto* remove = new QPushButton(QObject::tr("Delete"), row);
+        remove->setObjectName("delete-" + spec.key);
+        QObject::connect(remove, &QPushButton::clicked, dialog, [dialog, blocker, spec] {
+          if(QMessageBox::question(dialog, QObject::tr("Delete AI Agent"),
+              QObject::tr("Delete %1? Messenger will stop blocking this custom entry.").arg(spec.name)) != QMessageBox::Yes) return;
+          if(blocker->removeCustomAgent(spec.key)) AdminAudit::record("agents", "configuration", "Custom agent removed locally");
+        });
+        line->addWidget(remove);
+      }
+      rowLayout->addWidget(row);
+      }
+    rowLayout->addStretch();
+  };
+  rebuildRows();
+  QObject::connect(blocker, &AiAgentBlocker::specsChanged, dialog, rebuildRows, Qt::QueuedConnection);
   scroll->setWidget(rows);
   layout->addWidget(scroll);
+  auto* add = new QPushButton(QObject::tr("Add Agent..."), dialog);
+  add->setObjectName("addCustomAgent");
+  QObject::connect(add, &QPushButton::clicked, dialog, [dialog] { editCustomAgent(dialog); });
+  layout->addWidget(add);
   auto* allow = new QPushButton(QObject::tr("Allow All"), dialog);
   QObject::connect(allow, &QPushButton::clicked, blocker, [blocker] { blocker->setAllAllowed(true); });
   layout->addWidget(allow);
