@@ -707,8 +707,9 @@ void lmcMainWindow::createMainMenu(void) {
                                           QIcon(QPixmap(IDR_CLOSE, "PNG")));
   pToolsMenu = pMainMenu->addMenu("&Tools");
   QMenu* utilities = pToolsMenu->addMenu(tr("&Utilities (This PC)"));
-  utilities->addAction(tr("AI Agent Settings..."), this, [this] { showLocalUtilityDialog(this); });
-  utilities->addAction(tr("Administrator Password..."), this, [this] { configureLocalAdminPassword(this); });
+  utilities->setObjectName("localUtilitiesMenu");
+  utilities->addAction(tr("AI Agent Settings..."), this, [this] { showLocalUtilityDialog(this); })->setObjectName("localAgentSettingsAction");
+  utilities->addAction(tr("Administrator Password..."), this, [this] { configureLocalAdminPassword(this); })->setObjectName("localAdminPasswordAction");
   captureAction = ActionHelper::createAction(utilities, "Screen &Capture (OpenSourceCapture)...", this,
                                              &lmcMainWindow::captureAction_triggered,
                                              QIcon(QPixmap(IDR_TOOLS, "PNG")),
@@ -911,6 +912,9 @@ void lmcMainWindow::createToolBar(void) {
 
 void lmcMainWindow::setUIText(void) {
   ui.retranslateUi(this);
+  if(auto* utilities = findChild<QMenu*>("localUtilitiesMenu")) utilities->setTitle(tr("&Utilities (This PC)"));
+  if(auto* action = findChild<QAction*>("localAgentSettingsAction")) action->setText(tr("AI Agent Settings..."));
+  if(auto* action = findChild<QAction*>("localAdminPasswordAction")) action->setText(tr("Administrator Password..."));
 
   setWindowTitle(lmcStrings::appName());
 

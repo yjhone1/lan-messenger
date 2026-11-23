@@ -53,7 +53,7 @@
 #define IDS_AUTOSHOW "AutoShow"
 #define IDS_AUTOSHOW_VAL false
 #define IDS_LANGUAGE "Locale/Language"
-#define IDS_LANGUAGE_VAL "en_US"
+#define IDS_LANGUAGE_VAL "ko_KR"
 #define IDS_SYSTRAY "SystemTray/SysTray"
 #define IDS_SYSTRAY_VAL true
 #define IDS_MINIMIZETRAY "SystemTray/MinimizeTray"

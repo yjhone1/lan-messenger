@@ -18,6 +18,7 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QRegularExpression>
+#include <QCoreApplication>
 
 namespace {
 void editCustomAgent(QWidget* parent, const AiAgentSpec& existing = {}) {
@@ -112,7 +113,7 @@ void showLocalUtilityDialog(QWidget* parent) {
       line->setContentsMargins(0, 0, 0, 0);
       auto* check = new QCheckBox(spec.name + " (" + spec.processBinary + ")", row);
       check->setObjectName("agent-" + spec.key);
-      check->setToolTip(spec.description);
+      check->setToolTip(QCoreApplication::translate("AiAgentBlocker", spec.description.toUtf8().constData()));
       check->setChecked(blocker->isAllowed(spec.key));
       QObject::connect(check, &QCheckBox::toggled, blocker, [blocker, key = spec.key](bool allowed) {
         blocker->setAgentAllowed(key, allowed);
@@ -138,7 +139,7 @@ void showLocalUtilityDialog(QWidget* parent) {
         line->addWidget(remove);
       }
       rowLayout->addWidget(row);
-      }
+    }
     rowLayout->addStretch();
   };
   rebuildRows();
