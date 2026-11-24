@@ -31,6 +31,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QJsonObject>
+#include <QTextBrowser>
 #include "ui_userinfowindow.h"
 #include "core/shared.h"
 #include "core/settings.h"
@@ -66,6 +67,7 @@ protected:
 
 private:
   void setUIText(void);
+  void clearAdminDiagnostics(const QString& text);
 
   Ui::UserInfoWindow ui;
   lmcSettings* pSettings;
@@ -73,6 +75,8 @@ private:
   bool m_isLocalUser;
   QString m_targetUserId;
   QPlainTextEdit* m_adminDetails = nullptr;
+  QTextBrowser* m_adminReport = nullptr;
+  QTabWidget* m_adminViews = nullptr;
   QPushButton* m_adminRefresh = nullptr;
   quint64 m_diagnosticsGeneration = 0;
 };
