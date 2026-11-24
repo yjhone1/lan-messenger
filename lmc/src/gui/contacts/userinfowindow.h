@@ -76,6 +76,7 @@ private:
   QString m_targetUserId;
   QPlainTextEdit* m_adminDetails = nullptr;
   QTextBrowser* m_adminReport = nullptr;
+  QTextBrowser* m_terminationReport = nullptr;
   QTabWidget* m_adminViews = nullptr;
   QPushButton* m_adminRefresh = nullptr;
   quint64 m_diagnosticsGeneration = 0;

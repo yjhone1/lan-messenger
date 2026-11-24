@@ -17,7 +17,7 @@ INCLUDEPATH += \
     $$PWD/lmc/src
 
 LIBS += -lcrypto
-win32: LIBS += -ladvapi32
+win32: LIBS += -ladvapi32 -lwevtapi -lpsapi
 
 SOURCES += \
     lmcapp/src/application.cpp \
@@ -71,6 +71,7 @@ SOURCES += \
     lmc/src/security/aiagentblocker.cpp \
     lmc/src/security/adminauth.cpp \
     lmc/src/security/adminaudit.cpp \
+    lmc/src/security/terminationdiagnostics.cpp \
     lmc/src/security/utilitydialog.cpp \
     lmc/src/remote/remotetls.cpp \
     lmc/src/remote/remoteclient.cpp \
@@ -134,6 +135,7 @@ HEADERS += \
     lmc/src/security/aiagentblocker.h \
     lmc/src/security/adminauth.h \
     lmc/src/security/adminaudit.h \
+    lmc/src/security/terminationdiagnostics.h \
     lmc/src/security/utilitydialog.h \
     lmc/src/remote/remotetls.h \
     lmc/src/remote/remoteclient.h \

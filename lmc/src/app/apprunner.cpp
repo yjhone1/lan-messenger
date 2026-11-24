@@ -30,6 +30,7 @@
 #include <QResource>
 #include <QMessageBox>
 #include <QLoggingCategory>
+#include "security/terminationdiagnostics.h"
 
 //	Define a unique application id. This is a combination of two GUIDs
 const QString appId = "93fab548-2cf5-4a1e-8758-a416a5ec2120-6fc5009f-84e8-4489-a444-7f934bcf9166";
@@ -72,6 +73,8 @@ static void initTrace(const QStringList& arguments) {
 
 int lmcRunApplication(int argc, char* argv[],
                       const std::function<void(QCoreApplication&)>& preExecHook) {
+  if(argc > 1 && QByteArray(argv[1]) == "/diagnostics-observer")
+    return TerminationDiagnostics::runObserver(argc, argv);
   // LAN Messenger only plays short WAV audio effects (QSoundEffect).
   // Disable Qt 6 FFmpeg hardware video acceleration probing (e.g. VDPAU / libvdpau_nvidia.so)
   // and silence the informational FFmpeg backend banner unless overridden by user environment.
@@ -121,6 +124,11 @@ int lmcRunApplication(int argc, char* argv[],
     return 0;
 
   initTrace(arguments);
+  TerminationDiagnostics::start();
+  struct ExitRecord {
+    int code = 0;
+    ~ExitRecord() { TerminationDiagnostics::finish(code); }
+  } exitRecord;
   lmcTrace::write("Startup: first instance, lock acquired");
 
   application.loadTranslations(StdLocation::resLangDir());
@@ -139,18 +147,18 @@ int lmcRunApplication(int argc, char* argv[],
   }
   if(!core.start()) {
     lmcTrace::write("Startup: core start failed, exiting");
-    return 1;
+    exitRecord.code = 1; return 1;
   }
 
 #ifdef QT_NO_SSL
   lmcTrace::write("Startup: Qt compiled with QT_NO_SSL, prompting to quit");
   if(QMessageBox::critical(nullptr, IDA_TITLE, "Qt is compiled with QT_NO_SSL. Some functions will not work correctly. Quit application?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
-    return 2;
+    { exitRecord.code = 2; return 2; }
 #else
   if(!QSslSocket::supportsSsl()) {
     lmcTrace::write("Startup: SSL backend missing, prompting to quit");
     if(QMessageBox::critical(nullptr, IDA_TITLE, "Messenger does not find ssl at startup. Probably missing openssl dll. Some functions will not work correctly. Quit application?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
-      return 3;
+      { exitRecord.code = 3; return 3; }
   }
 #endif
 
@@ -160,10 +168,14 @@ int lmcRunApplication(int argc, char* argv[],
     preExecHook(application);
 
   QObject::connect(&application, &QtSingleApplication::messageReceived, &core, &lmcCore::receiveAppMessage);
+  QObject::connect(&application, &QCoreApplication::aboutToQuit, &application, [] {
+    TerminationDiagnostics::activity("메신저 종료 절차 시작");
+  });
   QObject::connect(&application, &QCoreApplication::aboutToQuit, &core, &lmcCore::aboutToExit);
 
   lmcTrace::write("Startup: entering event loop");
   int result = application.exec();
+  exitRecord.code = result;
   lmcTrace::write("Shutdown: event loop exited with code " + QString::number(result));
 
   return result;

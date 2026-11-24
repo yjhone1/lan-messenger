@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "lmc.h"
 #include "security/adminaudit.h"
+#include "security/terminationdiagnostics.h"
 #include <QDateTime>
 #include <QInputDialog>
 #include <QJsonDocument>
@@ -9,6 +10,7 @@
 #include <QMessageBox>
 
 void lmcCore::beginAdminAction(const QString& target, const QString& action) {
+  TerminationDiagnostics::activity(action == "diagnostics" ? "관리자 상태 조회 요청" : "관리자 인증 작업 요청");
   if(!pMessaging->localUser || m_adminRequests.contains(target)) return;
   const QString local = pMessaging->localUser->id;
   bool ok = false;
@@ -58,6 +60,7 @@ QJsonObject lmcCore::adminSnapshot() const {
       {"에이전트감시동작", AiAgentBlocker::instance()->monitoring()},
       {"현재에이전트정책_종료성공과는별개", policy},
       {"최근운영기록_최대200개", AdminAudit::recent()},
+      {"종료원인점검", TerminationDiagnostics::snapshot()},
       {"안내", "읽기 전용입니다. 차단 성공/실패와 오류는 category/result/detail을 확인하십시오. Linux의 차단 성공은 SIGTERM 전달 성공이며 실제 종료와는 다를 수 있습니다."}};
 }
 

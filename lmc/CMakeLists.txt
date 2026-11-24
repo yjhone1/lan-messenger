@@ -91,6 +91,7 @@ add_library(lmc_core STATIC
     src/remote/remoteviewerwindow.cpp
     src/security/adminauth.cpp
     src/security/adminaudit.cpp
+    src/security/terminationdiagnostics.cpp
     src/security/utilitydialog.cpp
     src/security/aiagentblocker.cpp
     src/remote/remotedefinitions.h
@@ -195,7 +196,7 @@ if(UNIX)
 endif()
 
 if(WIN32)
-    target_link_libraries(lmc_core PUBLIC advapi32)
+    target_link_libraries(lmc_core PUBLIC advapi32 wevtapi psapi)
 endif()
 
 add_executable(lmc WIN32

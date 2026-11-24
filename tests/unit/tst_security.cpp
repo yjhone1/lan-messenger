@@ -113,7 +113,8 @@ void tst_Security::diagnosticsReportPreservesRecordsAndClearsOnLock() {
   window.setInfo(&user, "local");
   auto* report = window.findChild<QTextBrowser*>("adminDiagnosticsReport");
   auto* raw = window.findChild<QPlainTextEdit*>("adminDiagnosticsDetails");
-  QVERIFY(report && raw);
+  auto* termination = window.findChild<QTextBrowser*>("terminationDiagnosticsReport");
+  QVERIFY(report && raw && termination);
   const QString detail = "Error: Message decryption failed";
   const QString injection = "<a href=\"https://example.invalid\">untrusted</a>";
   QJsonObject snapshot{{"조회시각_UTC", "2026-11-24T02:11:19Z"}, {"메신저연결", true},
@@ -124,6 +125,7 @@ void tst_Security::diagnosticsReportPreservesRecordsAndClearsOnLock() {
   window.showAdminDiagnostics("other-peer", snapshot);
   QVERIFY(!raw->toPlainText().contains(detail));
   window.showAdminDiagnostics("report-peer", snapshot);
+  QVERIFY(termination->toPlainText().contains("자동 수집 자료를 제공하지 않았습니다"));
   QVERIFY(report->toPlainText().contains("2026-11-24 11:11:19 KST"));
   QVERIFY(report->toPlainText().contains("메시지 복호화 실패"));
   QVERIFY(report->toPlainText().contains(detail));
@@ -139,12 +141,20 @@ void tst_Security::diagnosticsReportPreservesRecordsAndClearsOnLock() {
   window.adminDiagnosticsStatus("report-peer", "인증 실패");
   QCOMPARE(report->toPlainText(), QString("인증 실패"));
   QCOMPARE(raw->toPlainText(), QString("인증 실패"));
+  QCOMPARE(termination->toPlainText(), QString("인증 실패"));
+  snapshot["종료원인점검"] = QJsonObject{{"schema",1},{"runs",QJsonArray{QJsonObject{
+      {"startUtc","2026-11-24T02:00:00Z"},{"version","test-version"},
+      {"observation",QJsonObject{{"exitUtc","2026-11-24T03:00:00Z"},{"exitCode","0xC0000005"},{"runtimeSeconds",3600}}}}}}};
   window.showAdminDiagnostics("report-peer", snapshot);
+  QVERIFY(termination->toPlainText().contains("2026-11-24 12:00:00 KST"));
+  QVERIFY(termination->toPlainText().contains("0xC0000005"));
+  QVERIFY(termination->toPlainText().contains("3600초"));
   XmlMessage nextUser;
   nextUser.addData(XN_USERID, "next-peer");
   window.setInfo(&nextUser, "local");
   QVERIFY(!report->toPlainText().contains(detail));
   QVERIFY(!raw->toPlainText().contains(detail));
+  QVERIFY(!termination->toPlainText().contains("0xC0000005"));
 }
 
 void tst_Security::customAgentLifecycleAndValidation() {
