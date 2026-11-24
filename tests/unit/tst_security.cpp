@@ -15,6 +15,10 @@
 #include "security/aiagentblocker.h"
 #include "core/settings.h"
 #include "app/lmc.h"
+#include "gui/contacts/userinfowindow.h"
+#include <QTextTable>
+#include <QJsonArray>
+#include <QJsonDocument>
 
 class tst_Security : public QObject {
   Q_OBJECT
@@ -30,6 +34,7 @@ private slots:
   void processMatchingDetectsBlockedAgentsAndAllowsBrowsers();
   void captureIsAlwaysEnabledUponInstall();
   void customAgentLifecycleAndValidation();
+  void diagnosticsReportPreservesRecordsAndClearsOnLock();
 };
 
 void tst_Security::specsContainElevenAgentsIncludingOpenCode() {
@@ -97,6 +102,49 @@ void tst_Security::processMatchingDetectsBlockedAgentsAndAllowsBrowsers() {
 void tst_Security::captureIsAlwaysEnabledUponInstall() {
   QVERIFY(lmcCaptureWindow::isCaptureEnabled());
   QVERIFY(lmcCaptureWindow::isUserCaptureEnabled(QStringLiteral("peer-any")));
+}
+
+void tst_Security::diagnosticsReportPreservesRecordsAndClearsOnLock() {
+  lmcUserInfoWindow window;
+  window.init();
+  XmlMessage user;
+  user.addData(XN_USERID, "report-peer");
+  user.addData(XN_NAME, "<b>Remote PC</b>");
+  window.setInfo(&user, "local");
+  auto* report = window.findChild<QTextBrowser*>("adminDiagnosticsReport");
+  auto* raw = window.findChild<QPlainTextEdit*>("adminDiagnosticsDetails");
+  QVERIFY(report && raw);
+  const QString detail = "Error: Message decryption failed";
+  const QString injection = "<a href=\"https://example.invalid\">untrusted</a>";
+  QJsonObject snapshot{{"조회시각_UTC", "2026-11-24T02:11:19Z"}, {"메신저연결", true},
+      {"현재에이전트정책_종료성공과는별개", QJsonObject{{"opencode", "허용"}}},
+      {"최근운영기록_최대200개", QJsonArray{
+        QJsonObject{{"time", "2026-11-24T01:55:14.656Z"}, {"category", "network"}, {"result", "error"}, {"detail", detail}},
+        QJsonObject{{"detail", injection}}}}};
+  window.showAdminDiagnostics("other-peer", snapshot);
+  QVERIFY(!raw->toPlainText().contains(detail));
+  window.showAdminDiagnostics("report-peer", snapshot);
+  QVERIFY(report->toPlainText().contains("2026-11-24 11:11:19 KST"));
+  QVERIFY(report->toPlainText().contains("메시지 복호화 실패"));
+  QVERIFY(report->toPlainText().contains(detail));
+  QVERIFY(report->toPlainText().contains(injection));
+  QVERIFY(report->toHtml().contains("&lt;a href="));
+  QVERIFY(report->toPlainText().contains("<b>Remote PC</b>"));
+  QVERIFY(report->toPlainText().contains("정보 없음"));
+  QVERIFY(!report->openExternalLinks());
+  QCOMPARE(QJsonDocument::fromJson(raw->toPlainText().toUtf8()).object(), snapshot);
+  int tables = 0;
+  for(auto* frame : report->document()->rootFrame()->childFrames()) if(qobject_cast<QTextTable*>(frame)) ++tables;
+  QCOMPARE(tables, 3);
+  window.adminDiagnosticsStatus("report-peer", "인증 실패");
+  QCOMPARE(report->toPlainText(), QString("인증 실패"));
+  QCOMPARE(raw->toPlainText(), QString("인증 실패"));
+  window.showAdminDiagnostics("report-peer", snapshot);
+  XmlMessage nextUser;
+  nextUser.addData(XN_USERID, "next-peer");
+  window.setInfo(&nextUser, "local");
+  QVERIFY(!report->toPlainText().contains(detail));
+  QVERIFY(!raw->toPlainText().contains(detail));
 }
 
 void tst_Security::customAgentLifecycleAndValidation() {
