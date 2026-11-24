@@ -34,6 +34,7 @@
 #include <QMessageBox>
 #include <QSet>
 #include <QTranslator>
+#include "security/terminationdiagnostics.h"
 #include "core/trace.h"
 #include "lmc.h"
 
@@ -326,6 +327,12 @@ void lmcCore::startChatRoom(QString* lpszThreadId) {
 }
 
 void lmcCore::sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage) {
+  if(type == MT_Message || type == MT_Broadcast || type == MT_GroupMessage)
+    TerminationDiagnostics::activity("메시지 전송 처리 (내용은 수집하지 않음)");
+  else if(type == MT_File || type == MT_Folder)
+    TerminationDiagnostics::activity("파일 전송 처리 (파일명·내용은 수집하지 않음)");
+  else if(type == MT_RemoteRequest || type == MT_RemoteAccept || type == MT_RemoteClose)
+    TerminationDiagnostics::activity("원격 제어 연결 처리");
   QString data;
 
   switch(type) {

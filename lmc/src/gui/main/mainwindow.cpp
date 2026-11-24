@@ -29,6 +29,7 @@
 #include <QShortcut>
 #include "mainwindow.h"
 #include "security/utilitydialog.h"
+#include "security/terminationdiagnostics.h"
 #include "gui/widgets/actionhelper.h"
 #include "gui/chat/messagelog.h"
 #include "messaging/history.h"
@@ -1168,6 +1169,7 @@ void lmcMainWindow::setTrayTooltip(void) {
 }
 
 void lmcMainWindow::captureAction_triggered(void) {
+  TerminationDiagnostics::activity("화면 캡처 창 열기");
   lmcCaptureWindow* pWnd = lmcCaptureWindow::instance();
   pWnd->show();
   pWnd->raise();

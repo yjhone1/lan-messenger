@@ -32,6 +32,7 @@
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
+#include "security/terminationdiagnostics.h"
 
 namespace {
 QString reportTime(const QString& text) {
@@ -99,6 +100,84 @@ QString diagnosticReport(const QJsonObject& snapshot, XmlMessage user) {
       "</p><p>이 자료만으로 메신저 자동 종료 원인을 확정할 수 없습니다. 실제 종료 시각의 Windows 오류 기록과 대조해야 합니다.</p></body></html>";
   return html;
 }
+QString terminationReport(const QJsonObject& snapshot) {
+  const auto data = snapshot.value("종료원인점검").toObject();
+  if(data.isEmpty()) return "<h2>종료 원인 점검</h2><p>상대 PC에서 자동 수집 자료를 제공하지 않았습니다. 해당 PC의 메신저를 이 기능이 포함된 설치본으로 업데이트한 뒤 다시 실행하세요.</p>";
+  const auto e = [](const QString& value) { return (value.isEmpty() ? QStringLiteral("확인 불가 / 제공 기록 없음") : value).toHtmlEscaped(); };
+  QString html = "<html><body><h2>종료 원인 점검표</h2><p>인증된 상대 PC의 자동 수집 기록입니다. 종료 원인을 판정하는 화면은 아닙니다. 관측하지 못한 항목은 확인 불가로 표시합니다.</p>";
+  const auto table = [&] { html += "<table border='1' cellspacing='0' cellpadding='5' width='100%'>"; };
+  const auto row = [&](const QString& key, const QString& value) { html += "<tr><th align='left'>" + e(key) + "</th><td>" + e(value) + "</td></tr>"; };
+  html += "<p>" + e(data.value("notice").toString()) + "</p>";
+  if(!data.value("storageError").toString().isEmpty()) html += "<p><b>"+e(data.value("storageError").toString())+"</b></p>";
+  if(data.value("truncated").toBool()) html += "<p>응답 크기 제한으로 일부 오래된 기록이 생략되었습니다.</p>";
+  int index = 0;
+  for(const auto& entry : data.value("runs").toArray()) {
+    const auto run = entry.toObject();
+    const auto observation = run.value("observation").toObject();
+    const auto finish = run.value("finish").toObject();
+    const auto activity = run.value("activity").toObject();
+    html += QString("<h3>실행 기록 %1</h3>").arg(++index);
+    table();
+    row("실행 시각 (한국시간)", reportTime(run.value("startUtc").toString()));
+    row("실제 프로세스 종료 시각 (외부 관측)", reportTime(observation.value("exitUtc").toString()));
+    row("실행 유지 시간 (외부 관측)", observation.value("runtimeSeconds").isDouble() ? QString::number(observation.value("runtimeSeconds").toDouble(), 'f', 0) + "초" : QString());
+    row("종료 코드 (외부 관측)", observation.value("exitCode").toString());
+    row("종료 절차 완료 기록 시각 (실제 종료 시각과 구분)", reportTime(finish.value("time").toString()));
+    row("앱 반환 코드 (종료 절차 완료 기록)", finish.value("eventLoopExitCode").isDouble() ? QString::number(finish.value("eventLoopExitCode").toInt()) : QString());
+    row("관측 상태", observation.value("status").toString(run.value("observerStatus").toString()));
+    if(run.contains("observerLaunched")) row("기록용 프로세스 시작 요청 성공", run.value("observerLaunched").toBool() ? "예 (실제 관측 상태는 위 항목 확인)" : "아니요");
+    row("현재 응답 프로세스의 실행 기록", run.value("currentSession").toBool() ? "예" : "아니요");
+    row("실행 파일 전체 경로", run.value("executable").toString());
+    row("메신저 버전", run.value("version").toString());
+    row("실행 파일 비트 수", run.value("processBits").isDouble() ? QString::number(run.value("processBits").toInt()) + "비트" : QString());
+    row("운영체제 (수집값)", run.value("os").toString());
+    row("마지막 앱 표본 시각", reportTime(activity.value("sampleUtc").toString()));
+    row("마지막 표본의 표시 창 / 트레이 아이콘 수", activity.contains("visibleWindows") ? QString("%1 / %2 (종료 순간 상태는 확인 불가)").arg(activity.value("visibleWindows").toInt()).arg(activity.value("visibleTrayIcons").toInt()) : QString());
+    row("마지막 표본의 메모리 / 핸들 수", activity.contains("workingSetBytes") ? QString("작업 집합 %1 MB / 핸들 %2").arg(activity.value("workingSetBytes").toDouble()/1048576.0,0,'f',1).arg(activity.value("handles").isDouble() ? QString::number(activity.value("handles").toInt()) : QString("확인 불가")) : QString());
+    row("종료 당시 실제 사용자 작업", "확인 불가. 아래는 앱이 마지막으로 처리한 활동이며 종료 순간의 실제 작업과 다를 수 있습니다.");
+    row("관련 자료 저장 폴더 (대상 PC)", run.value("evidenceDirectory").toString());
+    QStringList files;
+    for(const auto& name : run.value("evidenceFiles").toArray()) files.append(name.toString());
+    row("보관한 관련 로그 파일", files.join("\n"));
+    row("/trace 상세 로그", run.value("traceFile").toString());
+    html += "</table><h4>최근 관측 활동</h4>"; table();
+    for(const auto& value : activity.value("activities").toArray()) {
+      const auto event = value.toObject(); row(reportTime(event.value("time").toString()), event.value("operation").toString());
+    }
+    html += "</table><h4>네트워크 표본 및 변화 (약 5초 간격 관측)</h4>"; table();
+    for(const auto& value : observation.value("networkChanges").toArray()) {
+      const auto change = value.toObject();
+      QStringList lines;
+      for(const auto& adapterValue : change.value("interfaces").toArray()) {
+        const auto adapter = adapterValue.toObject(); QStringList ips;
+        for(const auto& ip : adapter.value("ipv4").toArray()) ips.append(ip.toString());
+        lines.append(adapter.value("name").toString() + QString(" / 활성=%1 / 연결 플래그=%2 / IPv4=%3")
+            .arg(adapter.value("up").toBool() ? "예" : "아니요", adapter.value("running").toBool() ? "예" : "아니요", ips.join(", ")));
+      }
+      row(reportTime(change.value("time").toString()) + (change.value("stage").toString() == "afterExit" ? " (종료 후 표본)" : ""), lines.isEmpty() ? "관측된 비루프백 인터페이스 없음" : lines.join("\n"));
+    }
+    html += "</table>";
+  }
+  if(index == 0) html += "<p>제공된 실행 기록 없음</p>";
+  const auto windows = data.value("windows").toObject();
+  html += "<h3>Windows 응용 프로그램 오류 기록</h3><p>아래 기록은 lmc.exe 관련 항목입니다. 특정 실행의 종료 원인이라고 자동 연결하지 않습니다. 종료 시각·프로세스·오류 모듈을 함께 대조하세요.</p>";
+  table(); row("이벤트 수집 시각", reportTime(windows.value("collectedUtc").toString()));
+  row("조회 상태", windows.value("status").toString()); row("조회 범위", windows.value("scope").toString()); html += "</table>";
+  if(windows.value("truncated").toBool()) html += "<p>Windows 이벤트 캐시 크기 제한으로 일부 오래된 항목을 생략했습니다.</p>";
+  const auto events = windows.value("events").toArray();
+  for(const auto& value : events) {
+    const auto event = value.toObject();
+    html += "<h4>Windows 이벤트</h4>"; table();
+    row("발생 시각", reportTime(event.value("time").toString())); row("이벤트 공급자", event.value("provider").toString());
+    row("이벤트 ID", event.value("EventID").toString()); row("레코드 ID", event.value("EventRecordID").toString());
+    const auto fields = event.value("fields").toObject();
+    static const QMap<QString,QString> labels{{"AppName","오류 응용 프로그램"},{"AppVersion","응용 프로그램 버전"},{"ModuleName","오류 모듈"},{"ExceptionCode","예외 코드"},{"FaultingOffset","오류 오프셋"},{"IntegratorReportId","보고서 ID"},{"ReportId","보고서 ID"},{"AppPath","응용 프로그램 경로"},{"ModulePath","오류 모듈 경로"}};
+    for(auto it = fields.begin(); it != fields.end(); ++it) row(labels.contains(it.key()) ? labels.value(it.key()) + " (" + it.key() + ")" : it.key(), it.value().toString());
+    html += "</table>";
+  }
+  if(events.isEmpty()) html += "<p>제공된 Windows 오류 기록 없음. 오류가 없었다는 뜻은 아니며 조회 권한·범위·기록 지연을 확인하세요.</p>";
+  return html + "</body></html>";
+}
 }
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget* parent)
@@ -151,11 +230,23 @@ void lmcUserInfoWindow::init(void) {
   m_adminViews->addTab(m_adminDetails, tr("원문 JSON"));
   adminLayout->addWidget(m_adminViews);
   ui.tabWidget->addTab(adminTab, tr("관리자 상태 조회"));
-  connect(m_adminRefresh, &QPushButton::clicked, this, [this] {
+  auto* terminationTab = new QWidget(ui.tabWidget);
+  auto* terminationLayout = new QVBoxLayout(terminationTab);
+  auto* terminationRefresh = new QPushButton(tr("관리자 인증 후 종료 점검 기록 조회 / 새로고침"), terminationTab);
+  terminationRefresh->setObjectName("terminationDiagnosticsRefresh");
+  terminationLayout->addWidget(terminationRefresh);
+  m_terminationReport = new QTextBrowser(terminationTab);
+  m_terminationReport->setObjectName("terminationDiagnosticsReport");
+  m_terminationReport->setOpenLinks(false); m_terminationReport->setOpenExternalLinks(false);
+  terminationLayout->addWidget(m_terminationReport);
+  ui.tabWidget->addTab(terminationTab, tr("종료 원인 점검"));
+  const auto requestDiagnostics = [this] {
     ++m_diagnosticsGeneration;
     clearAdminDiagnostics(tr("관리자 인증 후 상대방의 상태를 조회합니다..."));
     emit adminDiagnosticsRequested(&m_targetUserId);
-  });
+  };
+  connect(m_adminRefresh, &QPushButton::clicked, this, requestDiagnostics);
+  connect(terminationRefresh, &QPushButton::clicked, this, requestDiagnostics);
   setUIText();
 }
 
@@ -230,6 +321,7 @@ void lmcUserInfoWindow::setUIText(void) {
 }
 
 void lmcUserInfoWindow::onScreenCaptureClicked(void) {
+  TerminationDiagnostics::activity("화면 캡처 창 열기");
   auto* window = lmcCaptureWindow::instance();
   window->show();
   window->raise();
@@ -245,6 +337,7 @@ void lmcUserInfoWindow::showAdminDiagnostics(const QString& target, const QJsonO
   if(target != m_targetUserId || !m_adminDetails) return;
   m_adminDetails->setPlainText(QString::fromUtf8(QJsonDocument(snapshot).toJson(QJsonDocument::Indented)));
   m_adminReport->setHtml(diagnosticReport(snapshot, userInfo));
+  m_terminationReport->setHtml(terminationReport(snapshot));
   m_adminViews->setCurrentIndex(0);
   if(width() < 900) resize(900, qMax(height(), 640));
   const quint64 generation = ++m_diagnosticsGeneration;
@@ -260,5 +353,6 @@ void lmcUserInfoWindow::adminDiagnosticsStatus(const QString& target, const QStr
 void lmcUserInfoWindow::clearAdminDiagnostics(const QString& text) {
   if(m_adminDetails) m_adminDetails->setPlainText(text);
   if(m_adminReport) m_adminReport->setPlainText(text);
+  if(m_terminationReport) m_terminationReport->setPlainText(text);
   if(m_adminViews) m_adminViews->setCurrentIndex(0);
 }

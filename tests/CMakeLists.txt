@@ -52,3 +52,8 @@ add_executable(tst_adminauth unit/tst_adminauth.cpp)
 target_link_libraries(tst_adminauth PRIVATE lmc_core Qt${QT_VERSION_MAJOR}::Test)
 add_test(NAME adminauth COMMAND tst_adminauth)
 set_tests_properties(adminauth PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+
+add_executable(tst_terminationdiagnostics unit/tst_terminationdiagnostics.cpp)
+target_link_libraries(tst_terminationdiagnostics PRIVATE lmc_core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME terminationdiagnostics COMMAND tst_terminationdiagnostics)
+set_tests_properties(terminationdiagnostics PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
